@@ -4,6 +4,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_RAW = Path(os.getenv("FDM_DATA_RAW", PROJECT_ROOT / "data" / "raw"))
+DATA_RAW_IS_EXTERNAL = "FDM_DATA_RAW" in os.environ
 DATA_PROCESSED = PROJECT_ROOT / "data" / "processed"
 MODELS_DIR = PROJECT_ROOT / "models"
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
@@ -21,8 +22,7 @@ SEED = 42
 VALIDATION_SPLIT = 0.15
 TEST_SPLIT = 0.15
 
-for path in [
-    DATA_RAW,
+WRITABLE_DIRS = [
     DATA_PROCESSED,
     MODELS_DIR,
     FIGURES_DIR,
@@ -30,5 +30,10 @@ for path in [
     PREDICTIONS_DIR,
     LOGS_DIR,
     KAGGLE_CONFIG_DIR,
-]:
+]
+
+if not DATA_RAW_IS_EXTERNAL:
+    WRITABLE_DIRS.insert(0, DATA_RAW)
+
+for path in WRITABLE_DIRS:
     path.mkdir(parents=True, exist_ok=True)
