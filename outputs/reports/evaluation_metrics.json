@@ -1,0 +1,32 @@
+{
+  "class_names": [
+    "Cracking",
+    "Layer_shifting",
+    "Off_platform",
+    "Stringing",
+    "Warping"
+  ],
+  "test_images": 287,
+  "test_loss": 0.1042386069893837,
+  "test_accuracy": 0.9756097793579102,
+  "image_size": [
+    224,
+    224
+  ],
+  "batch_size": 32,
+  "roc_auc": {
+    "Cracking": 0.9983698487219613,
+    "Layer_shifting": 0.9993730407523511,
+    "Off_platform": 1.0,
+    "Stringing": 1.0,
+    "Warping": 0.9996404171161453,
+    "macro_ovr": 0.9994766613180917,
+    "weighted_ovr": 0.9993750881081753
+  },
+  "inference_time": {
+    "timed_images": 223,
+    "total_seconds": 14.325658881996787,
+    "average_ms_per_image": 64.24062278922327,
+    "estimated_fps": 15.566474242957616
+  }
+}

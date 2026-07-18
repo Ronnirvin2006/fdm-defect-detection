@@ -11,5 +11,6 @@ outputs/predictions/*
 !outputs/predictions/.gitkeep
 logs/*
 !logs/.gitkeep
+fdm_defect_detection_results/
 __pycache__/
 *.pyc

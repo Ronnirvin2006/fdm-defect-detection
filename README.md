@@ -5,8 +5,8 @@ TensorFlow project for classifying camera images of FDM 3D printed parts into de
 ## Goal
 
 - Train a CNN-based image classifier for FDM print defects.
-- Use transfer learning with MobileNetV2 for stronger accuracy on a weak laptop.
-- Save a reusable model and generate project outputs: metrics, confusion matrix, classification report, and prediction results.
+- Use transfer learning with EfficientNetB0 for strong accuracy and MobileNetV2 as a lighter fallback.
+- Save a reusable model and generate project outputs: metrics, confusion matrix, ROC curves, Grad-CAM, classification report, recommendations, and prediction results.
 
 ## Dataset
 
@@ -39,7 +39,7 @@ Kaggle needs `kaggle.json` at:
 Train:
 
 ```bash
-python src/train.py --epochs 25 --fine-tune-epochs 10 --batch-size 16 --mixed-precision
+python src/train.py --architecture efficientnet_b0 --epochs 25 --fine-tune-epochs 10 --batch-size 32 --mixed-precision
 ```
 
 If GPU memory is low:
@@ -54,6 +54,24 @@ Predict one image:
 python src/predict.py /path/to/image.jpg
 ```
 
+Run full evaluation with ROC-AUC and inference-time measurement:
+
+```bash
+python src/evaluate_model.py --batch-size 32
+```
+
+Generate a Grad-CAM explanation image:
+
+```bash
+python src/gradcam.py /path/to/image.jpg
+```
+
+Launch the interactive upload/camera panel:
+
+```bash
+streamlit run src/app.py
+```
+
 ## Expected Outputs
 
 - `models/best_model.keras`
@@ -63,6 +81,30 @@ python src/predict.py /path/to/image.jpg
 - `outputs/reports/classification_report.txt`
 - `outputs/figures/training_curves.png`
 - `outputs/figures/confusion_matrix.png`
+- `outputs/figures/roc_curves.png`
+- `outputs/figures/gradcam_<image_name>.png`
+- `outputs/reports/evaluation_metrics.json`
+- `outputs/reports/dataset_expansion_research.md`
+- `outputs/reports/final_project_summary.md`
+
+## Current Trained Result
+
+- Architecture: EfficientNetB0
+- Test accuracy: 97.56%
+- Weighted F1-score: 97.58%
+- Macro ROC-AUC: 99.95%
+- Local CPU inference estimate: about 64 ms per image, around 15 FPS
+
+## Interactive Demo
+
+The Streamlit panel supports:
+
+- Uploading an image.
+- Taking a camera snapshot.
+- Displaying predicted defect class and confidence.
+- Showing possible causes and corrective actions.
+
+The current trained model detects only the five classes in the Kaggle dataset. Extra defects such as under-extrusion, over-extrusion, nozzle clog, blobs/zits, and no-defect require additional labeled datasets and retraining.
 
 ## Research Alignment
 

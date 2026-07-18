@@ -1,0 +1,11 @@
+                precision    recall  f1-score   support
+
+      Cracking     0.9853    0.9437    0.9640        71
+Layer_shifting     0.9474    0.9818    0.9643        55
+  Off_platform     0.8667    1.0000    0.9286        13
+     Stringing     1.0000    1.0000    1.0000        67
+       Warping     0.9875    0.9753    0.9814        81
+
+      accuracy                         0.9756       287
+     macro avg     0.9574    0.9802    0.9677       287
+  weighted avg     0.9767    0.9756    0.9758       287

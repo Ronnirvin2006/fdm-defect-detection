@@ -6,3 +6,4 @@ pillow==10.4.0
 matplotlib==3.9.2
 scikit-learn==1.6.1
 pandas==2.2.2
+streamlit==1.41.1

@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 from config import IMAGE_SIZE, MODELS_DIR
+from defect_knowledge import recommendation_for
 
 
 def load_image(path: Path):
@@ -27,10 +28,19 @@ def main() -> None:
     order = np.argsort(probs)[::-1]
 
     print(f"Image: {args.image}")
-    print(f"Prediction: {class_names[order[0]]} ({probs[order[0]] * 100:.2f}%)")
+    predicted_class = class_names[order[0]]
+    print(f"Prediction: {predicted_class} ({probs[order[0]] * 100:.2f}%)")
     print("Top classes:")
     for idx in order[:5]:
         print(f"  {class_names[idx]}: {probs[idx] * 100:.2f}%")
+
+    knowledge = recommendation_for(predicted_class)
+    print("Possible causes:")
+    for cause in knowledge["possible_causes"]:
+        print(f"  - {cause}")
+    print("Corrective actions:")
+    for action in knowledge["corrective_actions"]:
+        print(f"  - {action}")
 
 
 if __name__ == "__main__":
