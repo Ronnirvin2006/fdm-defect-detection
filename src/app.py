@@ -3,7 +3,10 @@ import os
 from pathlib import Path
 
 os.environ.setdefault("KERAS_HOME", str(Path(__file__).resolve().parents[1] / ".keras"))
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
+import pandas as pd
 import numpy as np
 from PIL import Image
 import streamlit as st
@@ -18,9 +21,15 @@ st.set_page_config(page_title="FDM Defect Detection", layout="wide")
 
 @st.cache_resource
 def load_model_and_classes():
-    model = tf.keras.models.load_model(MODELS_DIR / "best_model.keras")
+    model = tf.keras.models.load_model(MODELS_DIR / "best_model.keras", compile=False)
     class_names = json.loads((MODELS_DIR / "class_names.json").read_text(encoding="utf-8"))
     return model, class_names
+
+
+def safe_image(image_file) -> Image.Image:
+    image = Image.open(image_file).convert("RGB")
+    image.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
+    return image.copy()
 
 
 def preprocess(image: Image.Image) -> tf.Tensor:
@@ -37,7 +46,12 @@ def predict(image: Image.Image):
 
 
 def show_prediction(image: Image.Image) -> None:
-    class_names, probabilities, order = predict(image)
+    try:
+        class_names, probabilities, order = predict(image)
+    except Exception as exc:
+        st.error(f"Prediction failed: {exc}")
+        return
+
     top_idx = int(order[0])
     predicted_class = class_names[top_idx]
     confidence = float(probabilities[top_idx] * 100)
@@ -50,7 +64,13 @@ def show_prediction(image: Image.Image) -> None:
         st.metric("Prediction", predicted_class)
         st.metric("Confidence", f"{confidence:.2f}%")
         st.write("Class confidence")
-        st.bar_chart({class_names[idx]: float(probabilities[idx] * 100) for idx in order})
+        chart_data = pd.DataFrame(
+            {
+                "Class": [class_names[idx] for idx in order],
+                "Confidence": [float(probabilities[idx] * 100) for idx in order],
+            }
+        ).set_index("Class")
+        st.bar_chart(chart_data)
 
     st.subheader("Defect Interpretation")
     st.write(knowledge["description"])
@@ -75,12 +95,12 @@ def main() -> None:
     with tab_upload:
         uploaded = st.file_uploader("Upload a 3D print image", type=["jpg", "jpeg", "png", "bmp", "webp"])
         if uploaded:
-            show_prediction(Image.open(uploaded))
+            show_prediction(safe_image(uploaded))
 
     with tab_camera:
         camera_image = st.camera_input("Take a live camera snapshot")
         if camera_image:
-            show_prediction(Image.open(camera_image))
+            show_prediction(safe_image(camera_image))
 
     st.divider()
     st.write(
