@@ -147,3 +147,10 @@ Download `expanded_fdm_results.zip` from Kaggle output.
 ## Important Warning
 
 Only claim classes that appear in the final merged dataset inspection. Do not claim under-extrusion, over-extrusion, nozzle clog, or no-defect unless they appear as class folders after running `prepare_expanded_dataset.py`.
+
+Some datasets contain only generic binary labels such as `defected`, `YesDefects`, or `NoDefects`. The merger keeps these as:
+
+- `Defected`
+- `No_defect`
+
+`Defected` is useful for a broad defect/no-defect experiment, but it is not a specific defect type. For a clean multi-class final model, prefer specific labels such as `Under_extrusion`, `Stringing`, `Warping`, and `Nozzle_clog`.

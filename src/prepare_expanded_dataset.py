@@ -1,7 +1,9 @@
 import argparse
+import csv
 import json
+import re
 import shutil
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 from inspect_dataset import IMAGE_EXTS
@@ -20,10 +22,14 @@ ALIASES = {
     "cracking": "Cracking",
     "crack": "Cracking",
     "cracks": "Cracking",
+    "defect": "Defected",
+    "defected": "Defected",
     "good": "No_defect",
     "healthy": "No_defect",
     "no defect": "No_defect",
     "no_defect": "No_defect",
+    "nodefects": "No_defect",
+    "no defects": "No_defect",
     "non-defected": "No_defect",
     "non_defected": "No_defect",
     "ok": "No_defect",
@@ -49,6 +55,8 @@ ALIASES = {
     "under_extrusion": "Under_extrusion",
     "underextrusion": "Under_extrusion",
     "warping": "Warping",
+    "yesdefects": "Defected",
+    "yes defects": "Defected",
     "z": "Z_banding",
     "z banding": "Z_banding",
     "z-banding": "Z_banding",
@@ -62,14 +70,94 @@ def normalize_name(name: str) -> str:
     return ALIASES.get(cleaned, "")
 
 
+def parse_class_list(path: Path) -> dict[str, str]:
+    mapping = {}
+    if not path.exists():
+        return mapping
+    for index, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        parts = re.split(r"[,;:\t ]+", line, maxsplit=1)
+        if len(parts) == 2 and parts[0].isdigit():
+            key, label = parts[0], parts[1]
+        else:
+            key, label = str(index), line
+        normalized = normalize_name(label)
+        if normalized:
+            mapping[key] = normalized
+    return mapping
+
+
+def candidate_image_names(tokens: list[str]) -> list[str]:
+    return [token.strip().strip("\"'") for token in tokens if Path(token.strip().strip("\"'")).suffix.lower() in IMAGE_EXTS]
+
+
+def find_image_by_name(root: Path, image_dirs: list[Path], name: str) -> Path | None:
+    name_path = Path(name)
+    search_names = [name_path.name]
+    if name_path.suffix.lower() not in IMAGE_EXTS:
+        search_names.extend(f"{name_path.name}{ext}" for ext in IMAGE_EXTS)
+
+    for image_dir in image_dirs:
+        for search_name in search_names:
+            exact = image_dir / search_name
+            if exact.exists():
+                return exact
+
+    for search_name in search_names:
+        matches = list(root.rglob(search_name))
+        if matches:
+            return matches[0]
+    return None
+
+
+def discover_label_file_images(source: Path) -> dict[str, list[Path]]:
+    images_by_class = defaultdict(list)
+    label_files = [path for path in source.rglob("*") if path.name.lower() in {"labels.txt", "labels.csv"}]
+
+    for label_file in label_files:
+        class_map = parse_class_list(label_file.parent / "class_list.txt")
+        image_dirs = [path for path in label_file.parent.rglob("*") if path.is_dir() and "image" in path.name.lower()]
+
+        for line in label_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            tokens = next(csv.reader([line], delimiter=",")) if "," in line else re.split(r"[\s;]+", line)
+            tokens = [token.strip().strip("\"'") for token in tokens if token.strip()]
+            image_tokens = candidate_image_names(tokens)
+            if not image_tokens:
+                continue
+
+            image_path = find_image_by_name(label_file.parent, image_dirs, image_tokens[0])
+            if image_path is None:
+                continue
+
+            label = ""
+            for token in reversed(tokens):
+                if token in image_tokens:
+                    continue
+                label = class_map.get(token, normalize_name(token))
+                if label:
+                    break
+            if label:
+                images_by_class[label].append(image_path)
+
+    return images_by_class
+
+
 def discover_images(sources: list[Path]) -> dict[str, list[Path]]:
     images_by_class = defaultdict(list)
-    ignored = Counter()
 
     for source in sources:
         if not source.exists():
-            ignored[str(source)] += 1
+            print(f"Warning: source does not exist: {source}")
             continue
+
+        for class_name, images in discover_label_file_images(source).items():
+            images_by_class[class_name].extend(images)
 
         for directory in [source, *source.rglob("*")]:
             if not directory.is_dir():
