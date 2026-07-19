@@ -1,7 +1,10 @@
 [
   "Cracking",
   "Layer_shifting",
+  "No_defect",
   "Off_platform",
+  "Spaghetti",
   "Stringing",
+  "Under_extrusion",
   "Warping"
 ]

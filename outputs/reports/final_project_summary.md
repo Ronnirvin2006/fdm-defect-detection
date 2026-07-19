@@ -15,22 +15,25 @@ The objective is to automate visual quality inspection in FDM 3D printing using 
 
 ## Dataset Used
 
-Dataset: FDM 3D Printing Defect Dataset from Kaggle
+Dataset: Expanded FDM defect dataset merged from Kaggle sources
 
 Classes:
 
 - Cracking
 - Layer_shifting
+- No_defect
 - Off_platform
+- Spaghetti
 - Stringing
+- Under_extrusion
 - Warping
 
 Dataset inspection:
 
-- Total images: 1912
-- Train images: 1338
-- Validation images: 287
-- Test images: 287
+- Total images: 4405
+- Train images: 3083
+- Validation images: 661
+- Test images: 661
 - Corrupt images: 0
 
 ## Model
@@ -48,24 +51,22 @@ Important techniques:
 
 ## Results
 
-Test accuracy: 97.56%
+Test accuracy: 96.52%
 
 Per-class F1-score:
 
-- Cracking: 0.9640
-- Layer_shifting: 0.9643
-- Off_platform: 0.9286
-- Stringing: 1.0000
-- Warping: 0.9814
+- Cracking: 0.9714
+- Layer_shifting: 0.9815
+- No_defect: 0.9380
+- Off_platform: 0.9655
+- Spaghetti: 0.9863
+- Stringing: 0.9890
+- Under_extrusion: 0.9424
+- Warping: 0.9816
 
-Weighted F1-score: 0.9758
+Macro F1-score: 0.9695
 
-Macro ROC-AUC: 0.9995
-
-Local CPU inference speed:
-
-- Average time per image: 64.24 ms
-- Estimated throughput: 15.57 FPS
+Weighted F1-score: 0.9650
 
 ## Project Outputs
 
@@ -75,7 +76,6 @@ Local CPU inference speed:
 - Classification report: `outputs/reports/classification_report.txt`
 - Confusion matrix: `outputs/figures/confusion_matrix.png`
 - Training curves: `outputs/figures/training_curves.png`
-- ROC curves: `outputs/figures/roc_curves.png`
 - Grad-CAM output: `outputs/figures/gradcam_<image_name>.png`
 
 ## Added Research-Gap Features
@@ -91,7 +91,7 @@ The base research gap says many systems stop at classification. This project ext
 
 ## Current Limitation
 
-The current trained model only detects the five classes used during training. More defects such as under-extrusion, over-extrusion, nozzle clogging, blobs/zits, layer separation, and no-defect require additional labeled data and retraining.
+The current trained model detects the eight classes used during expanded training. More defects such as over-extrusion, nozzle clogging, blobs/zits, and layer separation require additional labeled data and retraining.
 
 ## Future Work
 

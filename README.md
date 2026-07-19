@@ -87,19 +87,17 @@ streamlit run src/app.py
 - `outputs/reports/classification_report.txt`
 - `outputs/figures/training_curves.png`
 - `outputs/figures/confusion_matrix.png`
-- `outputs/figures/roc_curves.png`
 - `outputs/figures/gradcam_<image_name>.png`
-- `outputs/reports/evaluation_metrics.json`
 - `outputs/reports/dataset_expansion_research.md`
 - `outputs/reports/final_project_summary.md`
 
 ## Current Trained Result
 
 - Architecture: EfficientNetB0
-- Test accuracy: 97.56%
-- Weighted F1-score: 97.58%
-- Macro ROC-AUC: 99.95%
-- Local CPU inference estimate: about 64 ms per image, around 15 FPS
+- Classes: 8
+- Test accuracy: 96.52%
+- Weighted F1-score: 96.50%
+- Macro F1-score: 96.95%
 
 ## Interactive Demo
 
@@ -110,7 +108,7 @@ The Streamlit panel supports:
 - Displaying predicted defect class and confidence.
 - Showing possible causes and corrective actions.
 
-The current trained model detects only the five classes in the Kaggle dataset. Extra defects such as under-extrusion, over-extrusion, nozzle clog, blobs/zits, and no-defect require additional labeled datasets and retraining.
+The current trained model detects `Cracking`, `Layer_shifting`, `No_defect`, `Off_platform`, `Spaghetti`, `Stringing`, `Under_extrusion`, and `Warping`. Extra defects such as over-extrusion, nozzle clog, blobs/zits, and layer separation require additional labeled datasets and retraining.
 
 ## Expanded Dataset Training
 

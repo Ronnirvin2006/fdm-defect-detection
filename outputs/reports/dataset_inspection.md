@@ -1,6 +1,6 @@
 # Dataset Inspection
 
-Detected class root: `/home/ron/ml/fdm_defect_detection/data/raw/archive/FDM-3D-Printing-Defect-Dataset/data`
+Detected class root: `/kaggle/working/expanded_fdm_dataset`
 
 ## Class Counts
 
@@ -8,14 +8,18 @@ Detected class root: `/home/ron/ml/fdm_defect_detection/data/raw/archive/FDM-3D-
 |---|---:|
 | Cracking | 472 |
 | Layer_shifting | 364 |
+| No_defect | 900 |
 | Off_platform | 91 |
-| Stringing | 447 |
+| Spaghetti | 240 |
+| Stringing | 900 |
+| Under_extrusion | 900 |
 | Warping | 538 |
 
 ## Most Common Image Sizes
 
 | Size | Count |
 |---|---:|
-| 3072x2048 | 1912 |
+| 256x256 | 2940 |
+| 3072x2048 | 1465 |
 
 Corrupt images found: 0

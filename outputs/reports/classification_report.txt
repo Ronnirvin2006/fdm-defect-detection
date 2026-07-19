@@ -1,11 +1,14 @@
-                precision    recall  f1-score   support
+                 precision    recall  f1-score   support
 
-      Cracking     0.9853    0.9437    0.9640        71
-Layer_shifting     0.9474    0.9818    0.9643        55
-  Off_platform     0.8667    1.0000    0.9286        13
-     Stringing     1.0000    1.0000    1.0000        67
-       Warping     0.9875    0.9753    0.9814        81
+       Cracking     0.9855    0.9577    0.9714        71
+ Layer_shifting     0.9815    0.9815    0.9815        54
+      No_defect     0.9837    0.8963    0.9380       135
+   Off_platform     0.9333    1.0000    0.9655        14
+      Spaghetti     0.9730    1.0000    0.9863        36
+      Stringing     0.9783    1.0000    0.9890       135
+Under_extrusion     0.9161    0.9704    0.9424       135
+        Warping     0.9756    0.9877    0.9816        81
 
-      accuracy                         0.9756       287
-     macro avg     0.9574    0.9802    0.9677       287
-  weighted avg     0.9767    0.9756    0.9758       287
+       accuracy                         0.9652       661
+      macro avg     0.9659    0.9742    0.9695       661
+   weighted avg     0.9662    0.9652    0.9650       661
