@@ -12,6 +12,12 @@ TensorFlow project for classifying camera images of FDM 3D printed parts into de
 
 Kaggle dataset: `wengmhu/fdm-3d-printing-defect-dataset`
 
+For training more defect classes, see:
+
+```text
+KAGGLE_EXPANDED_DEFECT_TRAINING.md
+```
+
 ## Commands
 
 Install dependencies after Python pip/venv is available:
@@ -105,6 +111,20 @@ The Streamlit panel supports:
 - Showing possible causes and corrective actions.
 
 The current trained model detects only the five classes in the Kaggle dataset. Extra defects such as under-extrusion, over-extrusion, nozzle clog, blobs/zits, and no-defect require additional labeled datasets and retraining.
+
+## Expanded Dataset Training
+
+Use `src/prepare_expanded_dataset.py` on Kaggle to merge multiple attached datasets into one folder-per-class dataset:
+
+```bash
+python src/prepare_expanded_dataset.py --sources /kaggle/input/datasets /kaggle/input/3d-printing-errors --output /kaggle/working/expanded_fdm_dataset
+```
+
+Then train with:
+
+```bash
+FDM_DATA_RAW=/kaggle/working/expanded_fdm_dataset python src/train.py --architecture efficientnet_b0 --epochs 25 --fine-tune-epochs 10 --batch-size 32 --mixed-precision
+```
 
 ## Research Alignment
 

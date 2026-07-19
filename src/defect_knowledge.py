@@ -90,6 +90,58 @@ DEFECT_KNOWLEDGE = {
             "Lower nozzle temperature slightly",
         ],
     },
+    "Blobs_and_zits": {
+        "description": "Small bumps, zits, or excess plastic deposits on the print surface.",
+        "possible_causes": [
+            "Retraction restart distance too high",
+            "Pressure build-up in the nozzle",
+            "Very small perimeter moves or unstable extrusion flow",
+        ],
+        "corrective_actions": [
+            "Tune retraction and extra restart distance",
+            "Enable coasting or pressure advance if available",
+            "Reduce nozzle temperature slightly and calibrate flow",
+        ],
+    },
+    "Bed_adhesion_failure": {
+        "description": "The first layer does not stick correctly to the build plate.",
+        "possible_causes": [
+            "Dirty bed surface",
+            "Incorrect Z-offset",
+            "Bed temperature or first-layer speed not suitable",
+        ],
+        "corrective_actions": [
+            "Clean the bed and re-level it",
+            "Adjust Z-offset for better first-layer squish",
+            "Increase first-layer bed temperature or slow first layer",
+        ],
+    },
+    "Blob_of_death": {
+        "description": "Large mass of plastic builds up around the nozzle or print.",
+        "possible_causes": [
+            "Print detached and filament kept extruding",
+            "Severe nozzle leak",
+            "Unattended extrusion failure",
+        ],
+        "corrective_actions": [
+            "Stop the print immediately",
+            "Heat the hotend carefully before removing plastic",
+            "Inspect nozzle, heat block, and bed adhesion before restarting",
+        ],
+    },
+    "Layer_separation": {
+        "description": "Adjacent layers separate or delaminate from each other.",
+        "possible_causes": [
+            "Nozzle temperature too low",
+            "Cooling too strong",
+            "Material shrinkage or poor layer bonding",
+        ],
+        "corrective_actions": [
+            "Increase nozzle temperature",
+            "Reduce cooling fan speed",
+            "Use an enclosure for shrink-prone materials",
+        ],
+    },
     "Nozzle_clog": {
         "description": "Blocked nozzle causing weak extrusion, missing lines, or failed filament flow.",
         "possible_causes": [
@@ -101,6 +153,42 @@ DEFECT_KNOWLEDGE = {
             "Perform cold pull or replace nozzle",
             "Use clean, dry filament",
             "Check hotend cooling fan and heat break",
+        ],
+    },
+    "No_defect": {
+        "description": "The image appears to show a normal print without a known defect.",
+        "possible_causes": [
+            "No defect is detected by the trained classifier.",
+        ],
+        "corrective_actions": [
+            "Continue monitoring the print.",
+            "Inspect confidence scores if the prediction is uncertain.",
+        ],
+    },
+    "Spaghetti": {
+        "description": "Loose tangled filament appears because the print failed and extrusion continued.",
+        "possible_causes": [
+            "Print detached from the bed",
+            "Severe layer shift or support failure",
+            "Nozzle printing in air after part failure",
+        ],
+        "corrective_actions": [
+            "Stop the print and clear loose filament",
+            "Improve bed adhesion and support settings",
+            "Check slicer preview and reduce risky overhangs",
+        ],
+    },
+    "Z_banding": {
+        "description": "Repeating horizontal bands appear along the Z direction.",
+        "possible_causes": [
+            "Z-axis lead screw wobble or binding",
+            "Inconsistent extrusion",
+            "Frame vibration or mechanical misalignment",
+        ],
+        "corrective_actions": [
+            "Inspect and clean Z rods or lead screws",
+            "Check couplers, wheels, and frame alignment",
+            "Calibrate extrusion and reduce vibration",
         ],
     },
 }
