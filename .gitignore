@@ -7,11 +7,13 @@ data/processed/*
 !data/processed/.gitkeep
 models/*
 !models/.gitkeep
+!models/best_model.keras
 !models/class_names.json
 outputs/predictions/*
 !outputs/predictions/.gitkeep
 logs/*
 !logs/.gitkeep
 fdm_defect_detection_results/
+expanded_fdm_results/
 __pycache__/
 *.pyc
