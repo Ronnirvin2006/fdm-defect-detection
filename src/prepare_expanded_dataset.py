@@ -148,6 +148,65 @@ def discover_label_file_images(source: Path) -> dict[str, list[Path]]:
     return images_by_class
 
 
+def pick_column(fieldnames: list[str], candidates: set[str]) -> str:
+    normalized = {name.lower().strip(): name for name in fieldnames}
+    for candidate in candidates:
+        if candidate in normalized:
+            return normalized[candidate]
+    for lowered, original in normalized.items():
+        if any(candidate in lowered for candidate in candidates):
+            return original
+    return ""
+
+
+def discover_csv_images(source: Path) -> dict[str, list[Path]]:
+    images_by_class = defaultdict(list)
+    csv_files = [path for path in source.rglob("*.csv") if path.is_file()]
+
+    for csv_file in csv_files:
+        class_map = parse_class_list(csv_file.parents[1] / "class_list.txt")
+        if not class_map:
+            class_map = parse_class_list(csv_file.parent.parent / "class_list.txt")
+        if not class_map:
+            class_map = parse_class_list(csv_file.parent / "class_list.txt")
+
+        image_dirs = [path for path in csv_file.parents[1].rglob("*") if path.is_dir() and "image" in path.name.lower()]
+        if not image_dirs:
+            image_dirs = [path for path in csv_file.parent.rglob("*") if path.is_dir() and "image" in path.name.lower()]
+
+        with csv_file.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+            sample = handle.read(4096)
+            handle.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample)
+            except csv.Error:
+                dialect = csv.excel
+            reader = csv.DictReader(handle, dialect=dialect)
+            if not reader.fieldnames:
+                continue
+
+            image_col = pick_column(reader.fieldnames, {"image", "filename", "file", "img", "path"})
+            class_col = pick_column(reader.fieldnames, {"class", "label", "target", "category"})
+            if not image_col or not class_col:
+                continue
+
+            for row in reader:
+                image_name = row.get(image_col, "").strip().strip("\"'")
+                raw_label = row.get(class_col, "").strip().strip("\"'")
+                if not image_name or not raw_label:
+                    continue
+
+                image_path = find_image_by_name(csv_file.parents[1], image_dirs, image_name)
+                if image_path is None:
+                    continue
+
+                label = class_map.get(raw_label, normalize_name(raw_label))
+                if label:
+                    images_by_class[label].append(image_path)
+
+    return images_by_class
+
+
 def discover_images(sources: list[Path]) -> dict[str, list[Path]]:
     images_by_class = defaultdict(list)
 
@@ -157,6 +216,8 @@ def discover_images(sources: list[Path]) -> dict[str, list[Path]]:
             continue
 
         for class_name, images in discover_label_file_images(source).items():
+            images_by_class[class_name].extend(images)
+        for class_name, images in discover_csv_images(source).items():
             images_by_class[class_name].extend(images)
 
         for directory in [source, *source.rglob("*")]:
