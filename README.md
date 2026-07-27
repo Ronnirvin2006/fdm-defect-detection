@@ -6,7 +6,7 @@ TensorFlow project for classifying camera images of FDM 3D printed parts into de
 
 - Train a CNN-based image classifier for FDM print defects.
 - Use transfer learning with EfficientNetB0 for strong accuracy and MobileNetV2 as a lighter fallback.
-- Save a reusable model and generate project outputs: metrics, confusion matrix, ROC curves, Grad-CAM, classification report, recommendations, and prediction results.
+- Save a reusable model and generate project outputs: metrics, confusion matrix, Grad-CAM, classification report, recommendations, and prediction results.
 
 ## Dataset
 
@@ -72,7 +72,7 @@ Generate a Grad-CAM explanation image:
 python src/gradcam.py /path/to/image.jpg
 ```
 
-Launch the interactive upload/camera panel:
+Launch the interactive upload/live-webcam panel:
 
 ```bash
 streamlit run src/app.py
@@ -104,9 +104,12 @@ streamlit run src/app.py
 The Streamlit panel supports:
 
 - Uploading an image.
-- Taking a camera snapshot.
+- Live webcam monitoring with prediction overlay.
+- Taking a camera snapshot as a fallback.
 - Displaying predicted defect class and confidence.
-- Showing possible causes and corrective actions.
+- Showing AI feedback, possible causes, and corrective actions.
+
+During presentation, use the upload tab for the safest demo and the live webcam tab to show real-time monitoring.
 
 The current trained model detects `Cracking`, `Layer_shifting`, `No_defect`, `Off_platform`, `Spaghetti`, `Stringing`, `Under_extrusion`, and `Warping`. Extra defects such as over-extrusion, nozzle clog, blobs/zits, and layer separation require additional labeled datasets and retraining.
 
