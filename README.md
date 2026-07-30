@@ -18,6 +18,12 @@ For training more defect classes, see:
 KAGGLE_EXPANDED_DEFECT_TRAINING.md
 ```
 
+For a serious accuracy-improvement retrain, see:
+
+```text
+STRONG_RETRAINING_GUIDE.md
+```
+
 ## Commands
 
 Install dependencies after Python pip/venv is available:

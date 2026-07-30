@@ -90,17 +90,27 @@ def make_dataset(paths, labels, training: bool, batch_size: int):
     return ds
 
 
-def build_model(num_classes: int, dropout: float, architecture: str):
+def build_model(num_classes: int, dropout: float, architecture: str, augmentation_strength: str):
     inputs = tf.keras.Input(shape=(*IMAGE_SIZE, 3))
-    augmenter = tf.keras.Sequential(
-        [
+    if augmentation_strength == "light":
+        augmentation_layers = [
             tf.keras.layers.RandomFlip("horizontal"),
             tf.keras.layers.RandomRotation(0.05),
             tf.keras.layers.RandomZoom(0.08),
             tf.keras.layers.RandomContrast(0.08),
-        ],
-        name="augmentation",
-    )
+        ]
+    elif augmentation_strength == "strong":
+        augmentation_layers = [
+            tf.keras.layers.RandomFlip("horizontal"),
+            tf.keras.layers.RandomRotation(0.08),
+            tf.keras.layers.RandomZoom(0.12),
+            tf.keras.layers.RandomTranslation(0.06, 0.06),
+            tf.keras.layers.RandomContrast(0.12),
+            tf.keras.layers.RandomBrightness(0.08),
+        ]
+    else:
+        raise ValueError(f"Unsupported augmentation strength: {augmentation_strength}")
+    augmenter = tf.keras.Sequential(augmentation_layers, name="augmentation")
     x = augmenter(inputs)
 
     if architecture == "efficientnet_b0":
@@ -111,9 +121,49 @@ def build_model(num_classes: int, dropout: float, architecture: str):
             weights="imagenet",
         )
         fine_tune_start = -30
+    elif architecture == "efficientnet_b1":
+        x = tf.keras.applications.efficientnet.preprocess_input(x)
+        base = tf.keras.applications.EfficientNetB1(
+            input_shape=(*IMAGE_SIZE, 3),
+            include_top=False,
+            weights="imagenet",
+        )
+        fine_tune_start = -45
+    elif architecture == "efficientnet_b3":
+        x = tf.keras.applications.efficientnet.preprocess_input(x)
+        base = tf.keras.applications.EfficientNetB3(
+            input_shape=(*IMAGE_SIZE, 3),
+            include_top=False,
+            weights="imagenet",
+        )
+        fine_tune_start = -60
+    elif architecture == "efficientnet_v2_b0":
+        x = tf.keras.applications.efficientnet_v2.preprocess_input(x)
+        base = tf.keras.applications.EfficientNetV2B0(
+            input_shape=(*IMAGE_SIZE, 3),
+            include_top=False,
+            weights="imagenet",
+        )
+        fine_tune_start = -45
     elif architecture == "mobilenet_v2":
         x = tf.keras.applications.mobilenet_v2.preprocess_input(x)
         base = tf.keras.applications.MobileNetV2(
+            input_shape=(*IMAGE_SIZE, 3),
+            include_top=False,
+            weights="imagenet",
+        )
+        fine_tune_start = -35
+    elif architecture == "mobilenet_v3_large":
+        x = tf.keras.applications.mobilenet_v3.preprocess_input(x)
+        base = tf.keras.applications.MobileNetV3Large(
+            input_shape=(*IMAGE_SIZE, 3),
+            include_top=False,
+            weights="imagenet",
+        )
+        fine_tune_start = -45
+    elif architecture == "resnet50":
+        x = tf.keras.applications.resnet50.preprocess_input(x)
+        base = tf.keras.applications.ResNet50(
             input_shape=(*IMAGE_SIZE, 3),
             include_top=False,
             weights="imagenet",
@@ -125,6 +175,7 @@ def build_model(num_classes: int, dropout: float, architecture: str):
     base.trainable = False
     x = base(x, training=False)
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(dropout)(x)
     outputs = tf.keras.layers.Dense(num_classes, activation="softmax", dtype="float32")(x)
     model = tf.keras.Model(inputs, outputs)
@@ -183,12 +234,25 @@ def main() -> None:
     parser.add_argument("--fine-tune-epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument("--dropout", type=float, default=0.25)
+    parser.add_argument("--initial-lr", type=float, default=1e-3)
+    parser.add_argument("--fine-tune-lr", type=float, default=1e-5)
+    parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument("--lr-patience", type=int, default=2)
+    parser.add_argument("--augmentation", choices=["light", "strong"], default="light")
     parser.add_argument("--mixed-precision", action="store_true")
     parser.add_argument(
         "--architecture",
-        choices=["efficientnet_b0", "mobilenet_v2"],
+        choices=[
+            "efficientnet_b0",
+            "efficientnet_b1",
+            "efficientnet_b3",
+            "efficientnet_v2_b0",
+            "mobilenet_v2",
+            "mobilenet_v3_large",
+            "resnet50",
+        ],
         default="efficientnet_b0",
-        help="EfficientNet-B0 is stronger for Colab/Kaggle; MobileNetV2 is lighter for weak laptops.",
+        help="EfficientNet-B0/B1 are good defaults. EfficientNet-B3 is stronger but slower.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Validate dataset/model setup without training.")
     args = parser.parse_args()
@@ -204,8 +268,13 @@ def main() -> None:
     val_ds = make_dataset(val_paths, val_labels, False, args.batch_size)
     test_ds = make_dataset(test_paths, test_labels, False, args.batch_size)
 
-    model, base, fine_tune_start = build_model(len(class_names), args.dropout, args.architecture)
-    compile_model(model, 1e-3)
+    model, base, fine_tune_start = build_model(
+        len(class_names),
+        args.dropout,
+        args.architecture,
+        args.augmentation,
+    )
+    compile_model(model, args.initial_lr)
 
     class_weights_array = compute_class_weight(
         class_weight="balanced",
@@ -230,7 +299,14 @@ def main() -> None:
             save_best_only=True,
             mode="max",
         ),
-        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True),
+        tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="val_loss",
+            factor=0.3,
+            patience=args.lr_patience,
+            min_lr=1e-7,
+            verbose=1,
+        ),
+        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=args.patience, restore_best_weights=True),
         tf.keras.callbacks.CSVLogger(LOGS_DIR / "training_log.csv"),
     ]
 
@@ -246,7 +322,7 @@ def main() -> None:
         base.trainable = True
         for layer in base.layers[:fine_tune_start]:
             layer.trainable = False
-        compile_model(model, 1e-5)
+        compile_model(model, args.fine_tune_lr)
         fine_history = model.fit(
             train_ds,
             validation_data=val_ds,
@@ -279,6 +355,10 @@ def main() -> None:
         "image_size": IMAGE_SIZE,
         "batch_size": args.batch_size,
         "architecture": args.architecture,
+        "dropout": args.dropout,
+        "initial_lr": args.initial_lr,
+        "fine_tune_lr": args.fine_tune_lr,
+        "augmentation": args.augmentation,
         "class_weight": class_weight,
     }
     (MODELS_DIR / "class_names.json").write_text(json.dumps(class_names, indent=2), encoding="utf-8")
