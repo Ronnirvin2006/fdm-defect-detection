@@ -1,28 +1,40 @@
 import json
 import os
 import threading
-import time
 from pathlib import Path
 
 os.environ.setdefault("KERAS_HOME", str(Path(__file__).resolve().parents[1] / ".keras"))
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
-import av
 import cv2
 import pandas as pd
 import numpy as np
 from PIL import Image
 import streamlit as st
 import tensorflow as tf
-from streamlit_webrtc import RTCConfiguration, VideoProcessorBase, WebRtcMode, webrtc_streamer
 
 from config import IMAGE_SIZE, MODELS_DIR
 from defect_knowledge import recommendation_for
 
+ENABLE_WEBRTC = os.environ.get("FDM_ENABLE_WEBRTC", "0") == "1"
+if ENABLE_WEBRTC:
+    import av
+    from streamlit_webrtc import RTCConfiguration, VideoProcessorBase, WebRtcMode, webrtc_streamer
+else:
+    av = None
+    RTCConfiguration = None
+    VideoProcessorBase = object
+    WebRtcMode = None
+    webrtc_streamer = None
+
 
 st.set_page_config(page_title="FDM Defect Detection", layout="wide")
-RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+RTC_CONFIGURATION = (
+    RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+    if ENABLE_WEBRTC
+    else None
+)
 
 
 @st.cache_resource
@@ -190,15 +202,22 @@ def main() -> None:
             show_prediction(safe_image(uploaded))
 
     with tab_live:
-        st.write("Start the camera and point it at the print. Prediction is refreshed every few frames.")
-        webrtc_streamer(
-            key="fdm-live-detection",
-            mode=WebRtcMode.SENDRECV,
-            rtc_configuration=RTC_CONFIGURATION,
-            video_processor_factory=LiveDefectProcessor,
-            media_stream_constraints={"video": True, "audio": False},
-            async_processing=True,
-        )
+        if ENABLE_WEBRTC:
+            st.write("Start the camera and point it at the print. Prediction is refreshed every few frames.")
+            webrtc_streamer(
+                key="fdm-live-detection",
+                mode=WebRtcMode.SENDRECV,
+                rtc_configuration=RTC_CONFIGURATION,
+                video_processor_factory=LiveDefectProcessor,
+                media_stream_constraints={"video": True, "audio": False},
+                async_processing=True,
+            )
+        else:
+            st.warning(
+                "Live webcam streaming is disabled on this local setup because the native WebRTC package "
+                "is crashing. Use Camera Snapshot for the presentation, or run with FDM_ENABLE_WEBRTC=1 "
+                "after fixing streamlit-webrtc."
+            )
 
     with tab_camera:
         camera_image = st.camera_input("Take a live camera snapshot")
