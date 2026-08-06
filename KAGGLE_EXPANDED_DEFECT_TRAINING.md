@@ -4,15 +4,18 @@ This guide is for training more defect classes on Kaggle without filling laptop 
 
 ## What The Current Model Detects
 
-The current trained model detects only:
+The current expanded trained model detects:
 
 - Cracking
 - Layer_shifting
+- No_defect
 - Off_platform
+- Spaghetti
 - Stringing
+- Under_extrusion
 - Warping
 
-To detect more classes, attach additional datasets and retrain.
+To detect classes beyond these eight, attach suitable labeled datasets and retrain.
 
 ## Recommended Extra Datasets
 

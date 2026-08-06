@@ -87,6 +87,9 @@ The base research gap says many systems stop at classification. This project ext
 - Corrective-action recommendations
 - Grad-CAM explainability
 - Interactive upload and camera-snapshot panel
+- Continuous OpenCV camera monitoring with temporal prediction averaging
+- Optional OctoPrint temperature and print-progress telemetry
+- Low-confidence warning and operator-confirmed nozzle-cleaning checklist
 - Dataset expansion plan for more defect classes
 
 ## Current Limitation
@@ -97,5 +100,6 @@ The current trained model detects the eight classes used during expanded trainin
 
 - Retrain using expanded Roboflow, Kaggle, and Zenodo datasets.
 - Add more model comparisons such as MobileNetV3, ResNet50, and Custom CNN.
-- Add true continuous webcam/video inference.
-- Add closed-loop control suggestions that can be sent to a printer controller after human approval.
+- Validate continuous monitoring under multiple real printer camera angles and lighting conditions.
+- Add printer-specific telemetry for live XYZ position and motion speed where the controller exposes it.
+- Add human-approved printer control only after hardware safety validation.
