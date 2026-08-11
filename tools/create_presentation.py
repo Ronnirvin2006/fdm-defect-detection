@@ -178,16 +178,16 @@ p.font.color.rgb = TEXT
 add_footer(slide, 10)
 
 slide = add_slide("Interactive Demo")
-bullet_box(slide, 0.75, 1.35, 5.8, 5.4, ["App features", "- Upload image prediction", "- Live webcam monitoring", "- Camera snapshot fallback", "- Confidence chart", "- AI feedback with risk level", "- Possible causes and corrective actions"], 18)
-bullet_box(slide, 6.9, 1.35, 5.6, 5.4, ["Launch command", "cd /home/ron/ml/fdm_defect_detection", ".venv/bin/streamlit run src/app.py", "", "Open:", "http://localhost:8501"], 18)
+bullet_box(slide, 0.75, 1.35, 5.8, 5.4, ["App features", "- Continuous OpenCV camera scanning", "- Five-prediction temporal averaging", "- Uncertainty warning below 60%", "- AI feedback and risk level", "- Axis and nozzle inspection guidance", "- Optional OctoPrint telemetry"], 18)
+bullet_box(slide, 6.9, 1.35, 5.6, 5.4, ["Recommended launch", "cd /home/ron/ml/fdm_defect_detection", ".venv/bin/python src/live_dashboard.py", "", "Open:", "http://127.0.0.1:8765", "", "Camera releases when page closes"], 17)
 add_footer(slide, 11)
 
-slide = add_slide("AI Feedback Layer")
-bullet_box(slide, 0.8, 1.35, 11.8, 5.35, ["Beyond classification", "- Predicts the defect class", "- Reports confidence percentage", "- Maps defect to common root causes", "- Suggests corrective actions", "- Live mode overlays prediction on webcam feed", "- Helps operator decide whether to continue, pause, or inspect print"], 20)
+slide = add_slide("AI Feedback and Telemetry")
+bullet_box(slide, 0.8, 1.35, 11.8, 5.35, ["Beyond classification", "- Predicts class, confidence, and operational risk", "- Maps defects to likely causes and corrective actions", "- Marks low-confidence frames as uncertain", "- Shows temperature and progress when OctoPrint is connected", "- Keeps unavailable values explicit instead of fabricating telemetry", "- Never moves axes or changes heaters automatically"], 19)
 add_footer(slide, 12)
 
 slide = add_slide("Limitations")
-bullet_box(slide, 0.8, 1.35, 11.8, 5.35, ["Current limitations", "- Model predicts image-level class, not bounding-box location", "- Accuracy may change with new camera angle, lighting, printer, or material", "- Some defects need more labeled images", "- Live webcam mode is a prototype monitor, not closed-loop printer control"], 20)
+bullet_box(slide, 0.8, 1.35, 11.8, 5.35, ["Current limitations", "- Model predicts image-level class, not bounding-box location", "- 96.52% is an image-level held-out result", "- Cross-printer and cross-recording generalization is not yet established", "- Accuracy may change with camera angle, lighting, printer, or material", "- Monitoring is decision support, not closed-loop control"], 19)
 add_footer(slide, 13)
 
 slide = add_slide("Future Work")
@@ -195,7 +195,7 @@ bullet_box(slide, 0.8, 1.35, 11.8, 5.35, ["Possible improvements", "- Add more c
 add_footer(slide, 14)
 
 slide = add_slide("Conclusion")
-bullet_box(slide, 0.9, 1.7, 11.6, 4.5, ["Conclusion", "- Built an AI system for FDM defect detection", "- EfficientNetB0 achieved 96.52% test accuracy on 8 classes", "- App supports image upload, live webcam, AI feedback, and corrective actions", "- Project aligns with CNN deep learning and AI applications in manufacturing"], 21)
+bullet_box(slide, 0.9, 1.7, 11.6, 4.5, ["Conclusion", "- Built an eight-class AI system for FDM defect detection", "- EfficientNetB0 achieved 96.52% image-level test accuracy", "- OpenCV dashboard provides continuous monitoring and uncertainty handling", "- Explainability, feedback, and optional telemetry support operator decisions", "- External printer-session validation remains the next research step"], 19)
 add_footer(slide, 15)
 
 OUT.parent.mkdir(parents=True, exist_ok=True)

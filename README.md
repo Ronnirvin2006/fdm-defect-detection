@@ -75,6 +75,12 @@ Run full evaluation with ROC-AUC and inference-time measurement:
 python src/evaluate_model.py --batch-size 32
 ```
 
+Validate against a genuinely separate class-folder dataset:
+
+```bash
+.venv/bin/python src/validate_external.py /path/to/external_class_folders
+```
+
 Generate a Grad-CAM explanation image:
 
 ```bash
@@ -123,6 +129,8 @@ automatically moves an axis or changes a heater setting.
 - `outputs/figures/gradcam_<image_name>.png`
 - `outputs/reports/dataset_expansion_research.md`
 - `outputs/reports/final_project_summary.md`
+- `outputs/paper/FDM_Defect_Detection_Conference_Paper.docx`
+- `outputs/paper/FDM_Defect_Detection_Conference_Paper.pdf`
 
 ## Current Trained Result
 

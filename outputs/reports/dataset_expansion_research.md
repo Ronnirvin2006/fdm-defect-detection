@@ -1,14 +1,17 @@
 # Dataset Expansion Research
 
-The current trained model uses the Kaggle FDM 3D Printing Defect Dataset and detects five classes:
+The current expanded trained model detects eight classes:
 
 - Cracking
 - Layer_shifting
+- No_defect
 - Off_platform
+- Spaghetti
 - Stringing
+- Under_extrusion
 - Warping
 
-To detect more FDM defect types, the model must be retrained with labeled examples for those new classes. The current model should not be claimed to detect under-extrusion, over-extrusion, nozzle clogging, blobs/zits, healthy/no-defect, or layer separation until those labels are included in training.
+To detect more FDM defect types, the model must be retrained with labeled examples for those new classes. The current model should not be claimed to detect over-extrusion, nozzle clogging, blobs/zits, layer separation, bed-adhesion failure, or Z-banding.
 
 ## Useful Additional Dataset Sources
 

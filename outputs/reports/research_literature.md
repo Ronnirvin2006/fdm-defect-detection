@@ -81,8 +81,17 @@ The trained model can produce:
 
 ## Practical Model Choice
 
-For this laptop, MobileNetV2 transfer learning is the main practical choice. It is much lighter than large CNNs such as ResNet50 or EfficientNetB3 while still usually giving better accuracy than a from-scratch CNN on a small image dataset. A small batch size is used to avoid memory pressure.
+The final active model is EfficientNetB0. It provided the strongest overall test accuracy and weighted F1 score among the retained project runs while remaining small enough for local CPU inference. A stronger EfficientNetB3 retrain improved macro F1 slightly but did not beat EfficientNetB0 on accuracy or weighted F1.
+
+## Current Literature Position
+
+- Hu et al. (2024) reported a lightweight improved YOLOv8 system for five FFF defects with 97.5% mAP50. This is an object-detection study, whereas this project performs image-level eight-class classification and operator feedback.
+- Kim et al. (2022) demonstrated that transfer learning and Grad-CAM are feasible for small-data spaghetti-failure monitoring, reporting 94% accuracy.
+- Aktepe and Ergün (2026) compared EfficientNetB0 and MobileNetV2 on the original 1,912-image Kaggle dataset. The present project extends the data into eight classes and adds continuous monitoring, uncertainty handling, explainability, and optional telemetry.
+- Kuriachen et al. (2025) highlighted lightweight CNNs for real-time multi-class FDM monitoring and the need to improve generalization.
+
+Primary references and DOIs are included in `outputs/paper/FDM_Defect_Detection_Conference_Paper.md`.
 
 ## Limitation
 
-High accuracy on the dataset does not automatically prove that the model will work perfectly on a new printer, new camera angle, or new lighting condition. For a stronger project, final evaluation should report results on a held-out test split and not only on training images.
+High accuracy on the dataset does not automatically prove performance on a new printer, recording session, camera angle, or lighting condition. The reported 96.52% is based on a stratified image-level held-out split. A future publication-quality extension should use group-aware splitting by print or recording session and an external printer dataset.

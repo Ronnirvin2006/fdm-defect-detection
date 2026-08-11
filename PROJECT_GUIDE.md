@@ -101,6 +101,17 @@ cd /home/ron/ml/fdm_defect_detection
 .venv/bin/python src/predict.py /absolute/path/to/image.jpg
 ```
 
+### External Dataset Validation
+
+Use a genuinely separate labeled dataset organized as one folder per class:
+
+```bash
+.venv/bin/python src/validate_external.py /path/to/external_class_folders
+```
+
+This writes external accuracy, per-class metrics, and a confusion matrix. Do not use
+the original training images for this command when claiming external validity.
+
 ### Optional OctoPrint Telemetry
 
 ```bash
@@ -140,6 +151,7 @@ status is explicitly an operator confirmation, not a sensor reading.
 | `src/prepare_expanded_dataset.py` | Reads folders, CSV labels, and text labels from multiple datasets; normalizes class names and creates one merged class-folder dataset. |
 | `src/train.py` | Builds, trains, fine-tunes, evaluates, and saves EfficientNet or MobileNet classifiers. |
 | `src/evaluate_model.py` | Re-evaluates the saved model and generates detailed metrics such as ROC-AUC and inference timing. |
+| `src/validate_external.py` | Evaluates the active model on a genuinely separate class-folder dataset without retraining or re-splitting it. |
 | `src/predict.py` | Runs one saved image through the active model and prints ranked confidence scores and recommendations. |
 | `src/gradcam.py` | Produces a Grad-CAM heatmap showing which image regions influenced a prediction. |
 | `src/defect_knowledge.py` | Stores descriptions, likely causes, and corrective actions for known FDM defects. |
@@ -153,9 +165,6 @@ status is explicitly an operator confirmation, not a sensor reading.
 | `models/best_model.keras` | Active trained EfficientNetB0 model used by every prediction interface. |
 | `models/class_names.json` | Class index order required to translate model outputs into defect names. |
 | `models/.gitkeep` | Keeps the directory present if model artifacts are removed. |
-
-`models/best_model.expanded_original.keras` is a local ignored backup. It is not
-loaded by the application. Only `models/best_model.keras` is active.
 
 ### Generated Outputs
 
@@ -172,6 +181,11 @@ loaded by the application. Only `models/best_model.keras` is active.
 | `outputs/figures/confusion_matrix.png` | True-versus-predicted class comparison. |
 | `outputs/figures/gradcam_*.png` | Visual explanation overlays for sample predictions. |
 | `outputs/presentation/FDM_Defect_Detection_Project.pptx` | Editable 15-slide project presentation. |
+| `outputs/paper/FDM_Defect_Detection_Conference_Paper.md` | Version-controlled source for the IEEE-style conference manuscript. |
+| `outputs/paper/FDM_Defect_Detection_Conference_Paper.docx` | Editable two-column manuscript draft. |
+| `outputs/paper/FDM_Defect_Detection_Conference_Paper.pdf` | PDF manuscript draft for review. |
+| `outputs/paper/SUBMISSION_CHECKLIST.md` | Required metadata, template, validation, authorship, and licensing checks before conference submission. |
+| `outputs/reports/project_completion_audit.md` | Final evidence of completed deliverables and the one data-dependent validation gap. |
 | `outputs/predictions/.gitkeep` | Placeholder for future saved prediction results. |
 
 ### Supporting Folders
@@ -182,6 +196,7 @@ loaded by the application. Only `models/best_model.keras` is active.
 | `data/processed/` | Prepared or merged datasets; intentionally excluded from Git. |
 | `logs/` | Training logs and checkpoints; generated content is excluded from Git. |
 | `tools/create_presentation.py` | Rebuilds the PowerPoint from current project metrics and figures. |
+| `tools/create_conference_paper.py` | Rebuilds the editable conference DOCX from the manuscript source and project figures. |
 | `.venv/` | Local Python environment; never pushed to Git. |
 | `.keras/` | Local Keras model/download cache; never pushed to Git. |
 | `.kaggle/` | Local Kaggle credentials/configuration; never pushed to Git. |

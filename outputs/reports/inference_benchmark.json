@@ -1,0 +1,19 @@
+{
+  "device": "CPU",
+  "tensorflow_version": "2.20.0",
+  "model": "/home/ron/ml/fdm_defect_detection/models/best_model.keras",
+  "parameters": 4059819,
+  "model_size_bytes": 41227725,
+  "input_shape": [
+    1,
+    224,
+    224,
+    3
+  ],
+  "warmup_runs": 5,
+  "timed_runs": 30,
+  "mean_ms_per_image": 108.2599651333491,
+  "median_ms_per_image": 107.58395450011449,
+  "estimated_serial_fps": 9.237024959025721,
+  "note": "Timing includes the Keras predict call on one synthetic image and varies by host load."
+}

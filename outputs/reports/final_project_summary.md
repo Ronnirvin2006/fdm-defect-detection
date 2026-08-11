@@ -90,6 +90,9 @@ The base research gap says many systems stop at classification. This project ext
 - Continuous OpenCV camera monitoring with temporal prediction averaging
 - Optional OctoPrint temperature and print-progress telemetry
 - Low-confidence warning and operator-confirmed nozzle-cleaning checklist
+- Reproducible local CPU inference benchmark
+- External labeled-dataset validation command
+- IEEE-style conference manuscript and submission checklist
 - Dataset expansion plan for more defect classes
 
 ## Current Limitation
