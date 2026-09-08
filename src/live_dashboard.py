@@ -3,6 +3,7 @@ import os
 import signal
 import threading
 import time
+from io import BytesIO
 from collections import deque
 from datetime import datetime
 from http import HTTPStatus
@@ -95,8 +96,9 @@ def machine_guidance(predicted_class: str) -> dict:
 
 
 class SharedState:
-    def __init__(self):
+    def __init__(self, predictor):
         self.lock = threading.Lock()
+        self.predictor = predictor
         self.frame = None
         self.running = True
         self.video_clients = 0
@@ -120,6 +122,10 @@ class SharedState:
             "updated_at": None,
         }
         self.telemetry = disconnected_telemetry("OctoPrint is not configured")
+
+    def set_prediction(self, prediction: dict) -> None:
+        with self.lock:
+            self.prediction = prediction
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -220,21 +226,24 @@ class OctoPrintMonitor(threading.Thread):
             time.sleep(2)
 
 
-class CameraMonitor(threading.Thread):
-    def __init__(self, state: SharedState):
-        super().__init__(daemon=True)
-        self.state = state
+class DefectPredictor:
+    def __init__(self):
         self.model = tf.keras.models.load_model(MODELS_DIR / "best_model.keras", compile=False)
         self.class_names = json.loads((MODELS_DIR / "class_names.json").read_text(encoding="utf-8"))
         self.probability_history = deque(maxlen=5)
+        self.lock = threading.Lock()
 
-    def predict(self, frame: np.ndarray) -> dict:
+    def predict(self, frame: np.ndarray, use_history: bool = True) -> dict:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = Image.fromarray(rgb).resize(IMAGE_SIZE)
         batch = np.expand_dims(np.asarray(image, dtype=np.float32), axis=0)
-        current_probabilities = self.model.predict(batch, verbose=0)[0]
-        self.probability_history.append(current_probabilities)
-        probabilities = np.mean(self.probability_history, axis=0)
+        with self.lock:
+            current_probabilities = self.model.predict(batch, verbose=0)[0]
+            if use_history:
+                self.probability_history.append(current_probabilities)
+                probabilities = np.mean(self.probability_history, axis=0)
+            else:
+                probabilities = current_probabilities
         order = np.argsort(probabilities)[::-1]
         top_index = int(order[0])
         class_name = self.class_names[top_index]
@@ -260,6 +269,13 @@ class CameraMonitor(threading.Thread):
             "machine_guidance": machine_guidance(class_name),
             "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
+
+
+class CameraMonitor(threading.Thread):
+    def __init__(self, state: SharedState):
+        super().__init__(daemon=True)
+        self.state = state
+        self.predictor = state.predictor
 
     @staticmethod
     def placeholder(message: str) -> bytes:
@@ -313,9 +329,8 @@ class CameraMonitor(threading.Thread):
                 now = time.monotonic()
                 if now - last_prediction >= PREDICTION_INTERVAL:
                     try:
-                        prediction = self.predict(frame)
-                        with self.state.lock:
-                            self.state.prediction = prediction
+                        prediction = self.predictor.predict(frame)
+                        self.state.set_prediction(prediction)
                     except Exception as exc:
                         with self.state.lock:
                             self.state.prediction["description"] = f"Prediction failed: {exc}"
@@ -370,6 +385,8 @@ INDEX_HTML = r"""<!doctype html>
     .vision { padding:20px; min-width:0; }
     .video-wrap { position:relative; background:#07090b; border:1px solid var(--line); aspect-ratio:16/9; overflow:hidden; }
     .video-wrap img { width:100%; height:100%; object-fit:contain; display:block; }
+    .tools { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:14px 0 0; color:var(--muted); }
+    input[type=file] { max-width:320px; }
     .prediction { display:grid; grid-template-columns:180px 130px 1fr; gap:16px; padding:18px 0; border-bottom:1px solid var(--line); }
     .label { color:var(--muted); font-size:12px; text-transform:uppercase; }
     .value { font-size:24px; font-weight:650; margin-top:3px; }
@@ -395,6 +412,11 @@ INDEX_HTML = r"""<!doctype html>
   <main>
     <section class="vision">
       <div class="video-wrap"><img src="/video" alt="Live OpenCV camera feed"></div>
+      <div class="tools">
+        <label for="image-upload">Upload photo:</label>
+        <input id="image-upload" type="file" accept="image/png,image/jpeg,image/webp,image/bmp">
+        <span id="upload-status">Live camera is active. Uploaded photos use the same model.</span>
+      </div>
       <div class="prediction">
         <div><div class="label">Detected condition</div><div id="class-name" class="value">Waiting</div></div>
         <div><div class="label">Confidence</div><div id="confidence" class="value">0.0%</div></div>
@@ -487,6 +509,24 @@ INDEX_HTML = r"""<!doctype html>
       await fetch('/api/nozzle-cleaning', {method:'POST'});
       refresh();
     });
+    document.getElementById('image-upload').addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      text('upload-status', `Checking ${file.name}...`);
+      try {
+        const response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: {'Content-Type': file.type || 'application/octet-stream'},
+          body: file
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Upload failed');
+        text('upload-status', `Prediction updated from ${file.name}`);
+        refresh();
+      } catch (error) {
+        text('upload-status', `Upload prediction failed: ${error.message}`);
+      }
+    });
     refresh(); setInterval(refresh, 1000);
   </script>
 </body>
@@ -541,6 +581,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 )
             self.send_bytes(b'{"ok":true}', "application/json")
             return
+        if self.path == "/api/upload-image":
+            try:
+                content_length = int(self.headers.get("Content-Length", "0"))
+                if content_length <= 0:
+                    raise ValueError("No image data received")
+                image_bytes = self.rfile.read(content_length)
+                image = Image.open(BytesIO(image_bytes)).convert("RGB")
+                rgb = np.asarray(image, dtype=np.uint8)
+                frame = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+                prediction = self.state.predictor.predict(frame, use_history=False)
+                self.state.set_prediction(prediction)
+                self.send_bytes(json.dumps({"ok": True, "prediction": prediction}).encode("utf-8"), "application/json")
+            except Exception as exc:
+                payload = json.dumps({"ok": False, "error": str(exc)}).encode("utf-8")
+                self.send_bytes(payload, "application/json", HTTPStatus.BAD_REQUEST)
+            return
         self.send_bytes(b"Not found", "text/plain", HTTPStatus.NOT_FOUND)
 
     def log_message(self, message_format, *args):
@@ -549,7 +605,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    state = SharedState()
+    predictor = DefectPredictor()
+    state = SharedState(predictor)
     DashboardHandler.state = state
     camera = CameraMonitor(state)
     telemetry = OctoPrintMonitor(state)
