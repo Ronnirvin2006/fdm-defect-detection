@@ -1,7 +1,6 @@
 import json
 import os
-import threading
-import urllib.request
+import time
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,87 +15,15 @@ import numpy as np
 from PIL import Image
 import streamlit as st
 
-ENABLE_WEBRTC = os.environ.get("FDM_ENABLE_WEBRTC", "1") == "1"
-WEBRTC_IMPORT_ERROR = None
-if ENABLE_WEBRTC:
-    try:
-        import av
-        from streamlit_webrtc import RTCConfiguration, VideoProcessorBase, WebRtcMode, webrtc_streamer
-    except Exception as exc:
-        ENABLE_WEBRTC = False
-        WEBRTC_IMPORT_ERROR = str(exc)
-        av = None
-        RTCConfiguration = None
-        VideoProcessorBase = object
-        WebRtcMode = None
-        webrtc_streamer = None
-else:
-    av = None
-    RTCConfiguration = None
-    VideoProcessorBase = object
-    WebRtcMode = None
-    webrtc_streamer = None
-
 import tensorflow as tf
 
 from config import IMAGE_SIZE, MODELS_DIR
 from defect_knowledge import recommendation_for
 from scene_guard import assess_print_scene, blocked_prediction
+from browser_camera import camera_component, decode_camera_frame
 
 
-st.set_page_config(page_title="FDM Quality Desk", page_icon="F", layout="wide", initial_sidebar_state="expanded")
-
-
-def deployment_secret(name: str) -> str:
-    """Read a deployment secret without requiring a local secrets file."""
-    value = os.environ.get(name, "")
-    if value:
-        return value
-    try:
-        return str(st.secrets.get(name, ""))
-    except Exception:
-        return ""
-
-
-def cloudflare_turn_servers() -> list[dict]:
-    """Fetch short-lived TURN credentials when Cloudflare secrets are configured."""
-    key_id = deployment_secret("CLOUDFLARE_TURN_KEY_ID")
-    api_token = deployment_secret("CLOUDFLARE_TURN_API_TOKEN")
-    if not key_id or not api_token:
-        return []
-    url = f"https://rtc.live.cloudflare.com/v1/turn/keys/{key_id}/credentials/generate-ice-servers"
-    request = urllib.request.Request(
-        url,
-        headers={"Authorization": f"Bearer {api_token}", "User-Agent": "fdm-defect-detection"},
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        return payload.get("iceServers", [])
-    except Exception:
-        return []
-
-
-turn_urls = [item.strip() for item in deployment_secret("FDM_TURN_URLS").split(",") if item.strip()]
-if not turn_urls and deployment_secret("FDM_TURN_URL"):
-    turn_urls = [deployment_secret("FDM_TURN_URL")]
-turn_username = deployment_secret("FDM_TURN_USERNAME")
-turn_credential = deployment_secret("FDM_TURN_CREDENTIAL")
-ice_servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
-ice_servers.extend(cloudflare_turn_servers())
-if turn_urls and turn_username and turn_credential:
-    ice_servers.append(
-        {
-            "urls": turn_urls,
-            "username": turn_username,
-            "credential": turn_credential,
-        }
-    )
-RTC_CONFIGURATION = (
-    RTCConfiguration({"iceServers": ice_servers})
-    if ENABLE_WEBRTC
-    else None
-)
+st.set_page_config(page_title="FDM Quality Desk", page_icon="F", layout="wide", initial_sidebar_state="auto")
 
 
 def inject_dashboard_style() -> None:
@@ -243,9 +170,24 @@ def show_recent_inspections() -> None:
 
 @st.cache_resource
 def load_model_and_classes():
+    for gpu in tf.config.list_physical_devices("GPU"):
+        try:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError:
+            pass
     model = tf.keras.models.load_model(MODELS_DIR / "best_model.keras", compile=False)
     class_names = json.loads((MODELS_DIR / "class_names.json").read_text(encoding="utf-8"))
     return model, class_names
+
+
+@st.cache_resource
+def load_inference_function():
+    model, _ = load_model_and_classes()
+    return tf.function(
+        lambda batch: model(batch, training=False),
+        input_signature=[tf.TensorSpec([1, *IMAGE_SIZE, 3], tf.float32)],
+        reduce_retracing=True,
+    )
 
 
 def safe_image(image_file) -> Image.Image:
@@ -261,8 +203,8 @@ def preprocess(image: Image.Image) -> tf.Tensor:
 
 
 def predict(image: Image.Image):
-    model, class_names = load_model_and_classes()
-    probabilities = model.predict(preprocess(image), verbose=0)[0]
+    _, class_names = load_model_and_classes()
+    probabilities = load_inference_function()(preprocess(image)).numpy()[0]
     order = np.argsort(probabilities)[::-1]
     return class_names, probabilities, order
 
@@ -545,40 +487,29 @@ def show_video_analysis(video_file) -> dict | None:
     return result
 
 
-class LiveDefectProcessor(VideoProcessorBase):
-    def __init__(self):
-        self.model, self.class_names = load_model_and_classes()
-        self.lock = threading.Lock()
-        self.frame_count = 0
-        self.last_prediction = "Waiting..."
-        self.last_confidence = 0.0
-        self.last_feedback = "Point the camera at the print."
-
-    def recv(self, frame):
-        image = frame.to_ndarray(format="bgr24")
-        self.frame_count += 1
-
-        if self.frame_count % 10 == 1:
-            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(rgb)
-            probabilities = self.model.predict(preprocess(pil_image), verbose=0)[0]
-            order = np.argsort(probabilities)[::-1]
-            payload = scene_payload(pil_image, self.class_names, probabilities, order)
-            feedback = ai_feedback_text(payload)[0].replace("AI feedback: ", "")
-            with self.lock:
-                self.last_prediction = payload["predicted_class"]
-                self.last_confidence = payload["confidence"]
-                self.last_feedback = feedback
-
-        with self.lock:
-            label = f"{self.last_prediction} ({self.last_confidence:.1f}%)"
-            feedback = self.last_feedback
-
-        color = (0, 220, 0) if self.last_prediction == "No_defect" else ((0, 165, 255) if self.last_prediction != "Out_of_scope" else (0, 180, 220))
-        cv2.rectangle(image, (12, 12), (620, 92), (0, 0, 0), thickness=-1)
-        cv2.putText(image, label, (24, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-        cv2.putText(image, feedback[:68], (24, 78), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
-        return av.VideoFrame.from_ndarray(image, format="bgr24")
+@st.fragment
+def show_live_camera():
+    previous = st.session_state.get("live_camera_result")
+    value = camera_component(key="fdm-http-camera", result=previous, interval_ms=40, default=None)
+    if not isinstance(value, dict) or not value.get("id"):
+        return
+    if previous and previous["id"] == value["id"]:
+        return
+    try:
+        started = time.perf_counter()
+        image = decode_camera_frame(value.get("image"))
+        names, probabilities, order = predict(image)
+        payload = scene_payload(image, names, probabilities, order)
+        result = {
+            "id": value["id"],
+            "label": f"{payload['predicted_class']} ({payload['confidence']:.1f}%)",
+            "feedback": " ".join(ai_feedback_text(payload)) if payload["scene"]["valid"] else payload["scene"]["reason"],
+            "processing_ms": round((time.perf_counter() - started) * 1000, 1),
+        }
+    except Exception as exc:
+        result = {"id": value["id"], "label": "Analysis unavailable", "feedback": str(exc), "error": True}
+    st.session_state["live_camera_result"] = result
+    st.rerun(scope="fragment")
 
 
 def main() -> None:
@@ -626,27 +557,8 @@ def main() -> None:
                 )
 
     with tab_live:
-        if ENABLE_WEBRTC:
-            st.markdown("<div class='fdm-section'>Continuous browser-camera inspection</div>", unsafe_allow_html=True)
-            st.caption("On phones, the app requests the rear/environment camera first. Allow camera permission and point it at the print; prediction refreshes every few frames.")
-            webrtc_streamer(
-                key="fdm-live-detection",
-                mode=WebRtcMode.SENDRECV,
-                rtc_configuration=RTC_CONFIGURATION,
-                video_processor_factory=LiveDefectProcessor,
-                media_stream_constraints={
-                    "video": {"facingMode": {"ideal": "environment"}},
-                    "audio": False,
-                },
-                async_processing=True,
-            )
-        else:
-            st.warning(
-                "Continuous live webcam streaming is unavailable in this deployment. "
-                "Use Camera Snapshot or Upload Video instead."
-            )
-            if WEBRTC_IMPORT_ERROR:
-                st.caption(f"WebRTC setup message: {WEBRTC_IMPORT_ERROR}")
+        st.markdown("<div class='fdm-section'>Live camera inspection</div>", unsafe_allow_html=True)
+        show_live_camera()
 
     with tab_camera:
         st.markdown("<div class='fdm-section'>Capture one frame for inspection</div>", unsafe_allow_html=True)

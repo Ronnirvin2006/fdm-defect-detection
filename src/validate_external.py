@@ -41,7 +41,7 @@ def decode(path, label):
     return tf.cast(image, tf.float32), label
 
 
-def save_confusion(cm: np.ndarray, class_names: list[str], path: Path) -> None:
+def save_confusion(cm: np.ndarray, class_names: list[str], path: Path, title: str = "External Dataset Confusion Matrix") -> None:
     fig, ax = plt.subplots(figsize=(9, 8))
     image = ax.imshow(cm, cmap="Blues")
     fig.colorbar(image, ax=ax)
@@ -52,7 +52,7 @@ def save_confusion(cm: np.ndarray, class_names: list[str], path: Path) -> None:
         yticklabels=class_names,
         xlabel="Predicted label",
         ylabel="True label",
-        title="External Dataset Confusion Matrix",
+        title=title,
     )
     plt.setp(ax.get_xticklabels(), rotation=35, ha="right")
     for row in range(cm.shape[0]):

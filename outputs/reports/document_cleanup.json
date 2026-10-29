@@ -1,0 +1,53 @@
+{
+  "removed": [
+    {
+      "path": "outputs/paper/review_revision",
+      "bytes": 2624515
+    },
+    {
+      "path": "outputs/paper/camera_ready_v1_2026-10-29",
+      "bytes": 4113331
+    },
+    {
+      "path": "outputs/paper/FDM_Defect_Detection_Conference_Paper.md",
+      "bytes": 30512
+    },
+    {
+      "path": "outputs/paper/IAME2026_FDM_Defect_Detection_Full_Paper.docx",
+      "bytes": 212970
+    },
+    {
+      "path": "outputs/paper/IAME2026_FDM_Defect_Detection_Full_Paper.pdf",
+      "bytes": 193660
+    },
+    {
+      "path": "outputs/paper/SUBMISSION_CHECKLIST.md",
+      "bytes": 2959
+    },
+    {
+      "path": "outputs/reports/project_completion_audit.md",
+      "bytes": 2530
+    },
+    {
+      "path": "outputs/reports/camera_ready_and_video_status_2026-10-29.md",
+      "bytes": 5332
+    },
+    {
+      "path": "outputs/reports/project_status_2026-10-29.md",
+      "bytes": 6468
+    },
+    {
+      "path": "outputs/reports/final_project_summary.md",
+      "bytes": 3259
+    }
+  ],
+  "bytes_freed": 7195536,
+  "additional_consolidated_notes": ["PROJECT_GUIDE.md", "LOCAL_TRAINING_AND_CAMERA_READY.md"],
+  "protected": [
+    "data/",
+    "models/",
+    "all training run evidence",
+    "latest IAME submission package",
+    "original supplied templates outside this folder"
+  ]
+}

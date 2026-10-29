@@ -1,186 +1,126 @@
-# Automated Defect Detection in FDM 3D Printing using CNNs
+# FDM Inspect
 
-Open-source online deployment instructions are in `DEPLOY_STREAMLIT.md`. The hosted image-classification app can be published from this repository through Streamlit Community Cloud. The continuous OpenCV dashboard is for local hardware-connected use.
+An eight-condition Fused Deposition Modelling inspection workspace. A remote
+phone/laptop supplies images; the host runs EfficientNetB0 and returns class
+scores, curated causes and recommended checks. This is whole-image classification
+and operator decision support, not defect localisation or autonomous control.
 
-The Streamlit deployment uses Python 3.13 because the pinned TensorFlow version does not support Python 3.14.
-
-TensorFlow project for classifying camera images of FDM 3D printed parts into defect categories using the Kaggle FDM 3D Printing Defect Dataset.
-
-For the complete architecture, launch guide, and file-by-file explanation, see
-`PROJECT_GUIDE.md`.
-
-## Goal
-
-- Train a CNN-based image classifier for FDM print defects.
-- Use transfer learning with EfficientNetB0 for strong accuracy and MobileNetV2 as a lighter fallback.
-- Save a reusable model and generate project outputs: metrics, confusion matrix, Grad-CAM, classification report, recommendations, and prediction results.
-
-## Dataset
-
-Kaggle dataset: `wengmhu/fdm-3d-printing-defect-dataset`
-
-For training more defect classes, see:
-
-```text
-KAGGLE_EXPANDED_DEFECT_TRAINING.md
-```
-
-For a serious accuracy-improvement retrain, see:
-
-```text
-STRONG_RETRAINING_GUIDE.md
-```
-
-## Commands
-
-Install dependencies after Python pip/venv is available:
+## Launch and Share
 
 ```bash
 cd /home/ron/ml/fdm_defect_detection
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+bash tools/serve_remote.sh
 ```
 
-Download and inspect:
+Share the printed **HTTPS `trycloudflare.com` link**. The phone and host can use
+different networks. Keep the host awake, online and plugged in. Anyone with the
+link can access it; this temporary testing URL changes when restarted.
+
+For local use without a public tunnel:
 
 ```bash
-python src/download_dataset.py
-python src/inspect_dataset.py
+.venv/bin/python src/remote_camera_server.py --port 8502
 ```
 
-Kaggle needs `kaggle.json` at:
+Open `http://localhost:8502`. A phone cannot use the laptop's localhost address;
+remote camera permission needs the HTTPS link. More details: `REMOTE_PHONE_TESTING.md`.
 
-```text
-/home/ron/ml/fdm_defect_detection/.kaggle/kaggle.json
-```
+## Inspection
 
-Train:
+- **Live camera:** Start, grant permission, choose a rear camera and confirm the
+  print area. Preview is independent of inference. Each response requests a fresh
+  frame, so there is no backlog of old video frames.
+- **Photo:** JPG, PNG or WebP upload/drop with view confirmation.
+- **Video:** continuous analysis during browser playback with video timestamps.
+  Codec support depends on the browser; H.264 MP4 is a useful interoperable
+  option. Not every encoded video frame is analysed.
+- **Snapshot:** captures the current camera view and opens photo inspection.
+- **Feedback:** confidence, possible causes, recommended checks and class scores.
+  Three agreeing predictions at 70% confidence confirm a live condition. These
+  thresholds are uncalibrated heuristics, not safety guarantees.
+- **Explain frame:** on-demand Grad-CAM attention, not a segmented defect.
+- **CSV:** exports up to 10,000 recent checks with timestamps, source, scores,
+  displayed state and latency. Export before closing the page.
+- **Light/dark theme**, camera selection and automatic release on Stop, source
+  change, page hide or page exit.
+
+Preliminary checks reject detected faces, extreme lighting and nearly uniform
+views. They are **not trained printer/nozzle detection**; unrelated objects can
+still pass. Confirm the actual print and visually review important alerts. No
+temperature, speed or axis value is invented. No machine command is enabled.
+
+## Active Model and Evidence
+
+`models/best_model.keras` is the single active checkpoint, selected from
+`weak_classes_20261029_183217.keras`. Provenance and checksum are in
+`models/deployment.json`. All earlier weights remain locally; the original model
+is backed up as `models/historical_20260727.keras`. Other checkpoints and source
+images are intentionally excluded from Git.
+
+Classes: Cracking, Layer shifting, No defect, Off platform, Spaghetti, Stringing,
+Under-extrusion and Warping.
+
+| Experiment | Evaluation | Accuracy | Macro F1 |
+|---|---|---:|---:|
+| Historical model | 661-image stratified test | 96.52% | 96.95% |
+| Selected continuation | 4,427-image reused grouped validation | 83.83% | 83.57% |
+
+These are **not directly comparable**. Grouped validation was reused for model
+selection and may overlap source-checkpoint training history. It is not an
+independent test; external printer validation is pending.
+
+## Verification
 
 ```bash
-python src/train.py --architecture efficientnet_b0 --epochs 25 --fine-tune-epochs 10 --batch-size 32 --mixed-precision
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python tools/check_final_workspace.py --url http://localhost:8502
 ```
 
-If GPU memory is low:
+The browser QA helper needs Playwright and an installed Chrome; runtime camera
+use does not. Short simulated-camera checks measured about 11.4-11.9 checks/s
+locally and 2.9-3.6 checks/s through public HTTPS in desktop/mobile-sized Chromium
+viewports. These are software checks, not actual Android/iOS or physical-printer
+validation. Evidence is retained in `outputs/reports/release_validation.json`.
 
-```bash
-python src/train.py --epochs 25 --fine-tune-epochs 5 --batch-size 8
-```
+For a new environment, install the pinned `requirements.txt` in Python 3.10-3.13.
+CUDA/GPU configuration is a separate host setup step.
 
-Predict one image:
+## IAME Paper
 
-```bash
-python src/predict.py /path/to/image.jpg
-```
+Current files are only in `outputs/paper/IAME2026_Final/`:
 
-Run full evaluation with ROC-AUC and inference-time measurement:
+- `IAME2026_Paper54_Camera_Ready.pdf`: six-page A4 manuscript.
+- `IAME2026_Paper54_Full_Paper.pdf`: identical manuscript, alternate filename.
+- `IAME2026_Paper54_Response_to_Reviewers.pdf`: two-page response.
+- Editable DOCX/Markdown, project-derived vector figures, evidence and ZIP.
 
-```bash
-python src/evaluate_model.py --batch-size 32
-```
+The paper separates historical and current results. Calibration diagnostics use
+reused validation probabilities, not independent test data. An under-10%
+similarity score cannot be certified without Turnitin/iThenticate or another
+institution-approved report. The acceptance email specifies less than 15% and
+camera-ready completion by 31 October 2026. Supervisor approval, registration and
+CMT upload remain author actions.
 
-Validate against a genuinely separate class-folder dataset:
+## Files
 
-```bash
-.venv/bin/python src/validate_external.py /path/to/external_class_folders
-```
+| Path | Purpose |
+|---|---|
+| `src/remote_camera_server.py` | Main direct-inference web server |
+| `src/web/` | Dashboard, themes, camera/upload logic and local Lucide icons |
+| `src/scene_guard.py` | Preliminary unsuitable-view checks |
+| `src/gradcam.py` | Attention overlays and CLI |
+| `src/defect_knowledge.py` | Fixed troubleshooting knowledge |
+| `src/finetune_local.py` | Offline continuation training |
+| `src/app.py` | Optional legacy Streamlit interface, not the final dashboard |
+| `src/live_dashboard.py` | Earlier local OpenCV/telemetry prototype |
+| `tools/serve_remote.sh` | Model server plus public testing tunnel |
+| `tools/build_final_submission.py` | Rebuild final editable paper package |
+| `models/` | Active model, class mapping and preserved local checkpoints |
+| `data/` | Retained datasets and prepared images, excluded from Git |
+| `outputs/reports/` | Training and evaluation evidence |
+| `outputs/paper/IAME2026_Final/` | Current submission package |
+| `tests/` | Training, input-validation and server tests |
 
-Generate a Grad-CAM explanation image:
-
-```bash
-python src/gradcam.py /path/to/image.jpg
-```
-
-Launch the interactive upload/live-webcam panel:
-
-```bash
-streamlit run src/app.py
-```
-
-Launch the stable continuous OpenCV dashboard (recommended for local live monitoring):
-
-```bash
-.venv/bin/python src/live_dashboard.py
-```
-
-Open `http://127.0.0.1:8765`. This reads camera device `0`, continuously runs the
-classifier, overlays the detected class, and shows AI feedback in the browser.
-The scene gate rejects faces, flat background views, and unusable frames before the
-defect model runs. The dashboard also accepts image and video uploads, keeps a short
-inspection history, and exports it as CSV. The camera is released automatically when the page closes. Use another camera with
-`FDM_CAMERA_INDEX=1`, or stop the server completely with `Ctrl+C`.
-
-Optional real OctoPrint telemetry:
-
-```bash
-FDM_OCTOPRINT_URL=http://octoprint.local \
-FDM_OCTOPRINT_API_KEY=your_key_here \
-.venv/bin/python src/live_dashboard.py
-```
-
-Nozzle and bed temperatures, print state, progress, and time remaining come from
-OctoPrint. Live XYZ positions and actual motion speed are displayed as unavailable
-because the standard OctoPrint status API does not provide them. The dashboard never
-automatically moves an axis or changes a heater setting.
-
-## Expected Outputs
-
-- `models/best_model.keras`
-- `models/class_names.json`
-- `outputs/reports/dataset_inspection.md`
-- `outputs/reports/metrics.json`
-- `outputs/reports/classification_report.txt`
-- `outputs/figures/training_curves.png`
-- `outputs/figures/confusion_matrix.png`
-- `outputs/figures/gradcam_<image_name>.png`
-- `outputs/reports/dataset_expansion_research.md`
-- `outputs/reports/final_project_summary.md`
-- `outputs/paper/FDM_Defect_Detection_Conference_Paper.docx`
-- `outputs/paper/FDM_Defect_Detection_Conference_Paper.pdf`
-
-## Current Trained Result
-
-- Architecture: EfficientNetB0
-- Classes: 8
-- Test accuracy: 96.52%
-- Weighted F1-score: 96.50%
-- Macro F1-score: 96.95%
-
-## Interactive Demo
-
-The Streamlit panel supports:
-
-- Uploading an image or a short video.
-- Continuous browser-camera inspection through WebRTC.
-- Taking a camera snapshot as a fallback.
-- Displaying predicted defect class, confidence, risk level, and class distribution.
-- Showing image-quality warnings, possible causes, and corrective actions.
-- Keeping a session inspection history with CSV export.
-
-During presentation, use the image tab for a known test image or use the Streamlit
-WebRTC live tab for continuous browser-camera monitoring. If WebRTC is blocked by the
-browser or network, run the separate OpenCV dashboard for local continuous monitoring.
-
-The nozzle-cleaning value is an explicitly marked operator confirmation, not a value
-inferred by the camera.
-
-The current trained model detects `Cracking`, `Layer_shifting`, `No_defect`, `Off_platform`, `Spaghetti`, `Stringing`, `Under_extrusion`, and `Warping`. Extra defects such as over-extrusion, nozzle clog, blobs/zits, and layer separation require additional labeled datasets and retraining.
-
-## Expanded Dataset Training
-
-Use `src/prepare_expanded_dataset.py` on Kaggle to merge multiple attached datasets into one folder-per-class dataset:
-
-```bash
-python src/prepare_expanded_dataset.py --sources /kaggle/input/datasets /kaggle/input/3d-printing-errors --output /kaggle/working/expanded_fdm_dataset
-```
-
-Then train with:
-
-```bash
-FDM_DATA_RAW=/kaggle/working/expanded_fdm_dataset python src/train.py --architecture efficientnet_b0 --epochs 25 --fine-tune-epochs 10 --batch-size 32 --mixed-precision
-```
-
-## Research Alignment
-
-- Unit V: CNN, convolution layers, transfer learning, classification.
-- Unit I: AI application in automated manufacturing quality control.
+`DEPLOY_STREAMLIT.md` documents the optional fallback. The direct Python dashboard
+is recommended for the remote-camera test. A permanent URL requires an always-on
+HTTPS host or a managed tunnel/domain; the laptop testing link is temporary.

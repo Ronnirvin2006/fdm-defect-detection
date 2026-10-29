@@ -38,6 +38,7 @@ def make_gradcam_heatmap(model: tf.keras.Model, image_batch: tf.Tensor, class_in
             x = layer(x, training=False)
             if layer is target_layer:
                 feature_maps = x
+                tape.watch(feature_maps)
         predictions = x
         if feature_maps is None:
             raise ValueError("Could not capture feature maps for Grad-CAM.")
@@ -46,6 +47,8 @@ def make_gradcam_heatmap(model: tf.keras.Model, image_batch: tf.Tensor, class_in
         class_score = predictions[:, class_index]
 
     grads = tape.gradient(class_score, feature_maps)
+    if grads is None:
+        raise ValueError("The selected feature layer is not connected to the class score")
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
     heatmap = feature_maps[0] @ pooled_grads[..., tf.newaxis]
     heatmap = tf.squeeze(heatmap)
@@ -71,7 +74,7 @@ def main() -> None:
     args = parser.parse_args()
 
     class_names = json.loads((MODELS_DIR / "class_names.json").read_text(encoding="utf-8"))
-    model = tf.keras.models.load_model(args.model)
+    model = tf.keras.models.load_model(args.model, compile=False)
 
     original = load_image_array(args.image)
     image_batch = tf.expand_dims(tf.convert_to_tensor(original), axis=0)

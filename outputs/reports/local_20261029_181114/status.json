@@ -1,0 +1,6 @@
+{
+  "interrupted": false,
+  "time_limit_reached": false,
+  "best_model": "models/short_experiment_20261029_181102.keras",
+  "latest_model": "models/short_experiment_20261029_181102_latest.keras"
+}

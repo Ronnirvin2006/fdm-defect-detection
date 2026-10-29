@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-29",
+  "model": {
+    "selected_checkpoint": "models/weak_classes_20261029_183217.keras",
+    "sha256": "bdc73f91532ef297c914374db867a7b6d47f992ea497875fddc904308a28c48d",
+    "historical_backup": "models/historical_20260727.keras",
+    "report": "outputs/reports/local_20261029_183228",
+    "class_names": [
+      "Cracking",
+      "Layer_shifting",
+      "No_defect",
+      "Off_platform",
+      "Spaghetti",
+      "Stringing",
+      "Under_extrusion",
+      "Warping"
+    ],
+    "grouped_validation_accuracy": 0.8382651805877686,
+    "evaluation_note": "Grouped validation may overlap source model training history; not an independent test result.",
+    "decision": "Selected for demonstration after continuation training; independent physical-printer validation remains pending. Not a merged ensemble."
+  },
+  "local_browser": {
+    "url": "http://127.0.0.1:8504",
+    "physical_printer_tested": false,
+    "checks": [
+      {
+        "viewport": "desktop",
+        "simulated_camera": true,
+        "completed_updates": 80,
+        "seconds": 7.001251146000868,
+        "updates_per_second": 11.426529106257844,
+        "mean_server_processing_ms": 33.0722891566265,
+        "snapshot": true,
+        "photo": true,
+        "gradcam": true,
+        "csv_rows": 90,
+        "video": true,
+        "camera_release": true,
+        "no_horizontal_overflow": true,
+        "javascript_errors": []
+      },
+      {
+        "viewport": "mobile",
+        "simulated_camera": true,
+        "completed_updates": 83,
+        "seconds": 7.001521381000202,
+        "updates_per_second": 11.854566383991108,
+        "mean_server_processing_ms": 29.036470588235293,
+        "snapshot": true,
+        "photo": true,
+        "gradcam": true,
+        "csv_rows": 92,
+        "video": false,
+        "camera_release": true,
+        "no_horizontal_overflow": true,
+        "javascript_errors": []
+      }
+    ]
+  },
+  "public_browser": {
+    "url": "https://protein-hormone-title-depth.trycloudflare.com",
+    "physical_printer_tested": false,
+    "checks": [
+      {
+        "viewport": "desktop",
+        "simulated_camera": true,
+        "completed_updates": 25,
+        "seconds": 7.002827653999702,
+        "updates_per_second": 3.56998647335282,
+        "mean_server_processing_ms": 40.973076923076924,
+        "snapshot": true,
+        "photo": true,
+        "gradcam": true,
+        "csv_rows": 31,
+        "video": true,
+        "camera_release": true,
+        "no_horizontal_overflow": true,
+        "javascript_errors": []
+      },
+      {
+        "viewport": "mobile",
+        "simulated_camera": true,
+        "completed_updates": 20,
+        "seconds": 7.001745902998664,
+        "updates_per_second": 2.8564304213659804,
+        "mean_server_processing_ms": 26.87727272727273,
+        "snapshot": true,
+        "photo": true,
+        "gradcam": true,
+        "csv_rows": 25,
+        "video": false,
+        "camera_release": true,
+        "no_horizontal_overflow": true,
+        "javascript_errors": []
+      }
+    ]
+  },
+  "unit_tests_passed": 14,
+  "physical_printer_validated": false,
+  "real_android_ios_hardware_validated": false,
+  "machine_control": "excluded by user",
+  "similarity_percentage": null,
+  "similarity_note": "Requires an institution-approved external report; no under-10% certification.",
+  "manuscript": {
+    "IAME2026_Paper54_Camera_Ready": {
+      "pages": 6,
+      "size": "A4",
+      "sha256": "1e51e84efe242668ede15d5089016c27b4f7b58b26ca175f13ae75d2a2ddbfee"
+    },
+    "IAME2026_Paper54_Response_to_Reviewers": {
+      "pages": 2,
+      "size": "A4",
+      "sha256": "85538c78516d2c41572d56deb542649718437b78cfdfac0894dcb7efe2ec4202"
+    }
+  }
+}

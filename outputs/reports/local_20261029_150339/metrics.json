@@ -1,0 +1,30 @@
+{
+  "model": "models/full_dataset_20261029_150330.keras",
+  "class_names": [
+    "Cracking",
+    "Layer_shifting",
+    "No_defect",
+    "Off_platform",
+    "Spaghetti",
+    "Stringing",
+    "Under_extrusion",
+    "Warping"
+  ],
+  "train_images": 13772,
+  "validation_images": 4427,
+  "evaluation_note": "Grouped validation may overlap source model training history; not an independent test result.",
+  "validation_loss": 0.5607960820198059,
+  "validation_accuracy": 0.8310368061065674,
+  "batch_size": 4,
+  "offline": true,
+  "class_weight": {
+    "0": 4.703551912568306,
+    "1": 7.617256637168142,
+    "2": 0.33834512578616355,
+    "3": 24.94927536231884,
+    "4": 8.966145833333334,
+    "5": 0.6278264040846098,
+    "6": 0.364415749364945,
+    "7": 4.7164383561643834
+  }
+}

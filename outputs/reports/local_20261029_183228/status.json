@@ -1,0 +1,6 @@
+{
+  "interrupted": false,
+  "time_limit_reached": false,
+  "best_model": "models/weak_classes_20261029_183217.keras",
+  "latest_model": "models/weak_classes_20261029_183217_latest.keras"
+}

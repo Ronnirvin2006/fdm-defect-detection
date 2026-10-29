@@ -1,0 +1,120 @@
+{
+  "note": "Same grouped validation split; reused for model selection. Prior-model training overlap is unknown. These are not independent test results.",
+  "images": 4427,
+  "original": {
+    "model": "/home/ron/ml/fdm_defect_detection/models/best_model.keras",
+    "sha256": "9855174ddcf52bc0f9e39897399e8dec074f9fbce277a8437d7b7cfea0c620d7",
+    "accuracy": 0.5184097583013327,
+    "loss": 1.797507264483919,
+    "macro_f1": 0.5761586195813688,
+    "weighted_f1": 0.5385727997382537,
+    "per_class": {
+      "Cracking": {
+        "precision": 0.4364406779661017,
+        "recall": 0.9716981132075472,
+        "f1-score": 0.6023391812865497,
+        "support": 106.0
+      },
+      "Layer_shifting": {
+        "precision": 0.9013157894736842,
+        "recall": 0.9927536231884058,
+        "f1-score": 0.9448275862068966,
+        "support": 138.0
+      },
+      "No_defect": {
+        "precision": 0.8150851581508516,
+        "recall": 0.3457172342621259,
+        "f1-score": 0.4855072463768116,
+        "support": 1938.0
+      },
+      "Off_platform": {
+        "precision": 0.3283582089552239,
+        "recall": 1.0,
+        "f1-score": 0.4943820224719101,
+        "support": 22.0
+      },
+      "Spaghetti": {
+        "precision": 0.060225846925972396,
+        "recall": 1.0,
+        "f1-score": 0.1136094674556213,
+        "support": 48.0
+      },
+      "Stringing": {
+        "precision": 0.5499685732243872,
+        "recall": 0.7207578253706755,
+        "f1-score": 0.6238859180035651,
+        "support": 1214.0
+      },
+      "Under_extrusion": {
+        "precision": 0.4678260869565217,
+        "recall": 0.3413705583756345,
+        "f1-score": 0.3947175348495965,
+        "support": 788.0
+      },
+      "Warping": {
+        "precision": 0.9144385026737968,
+        "recall": 0.9884393063583815,
+        "f1-score": 0.95,
+        "support": 173.0
+      }
+    }
+  },
+  "candidate": {
+    "model": "models/full_dataset_20261029_150330.keras",
+    "sha256": "e6637f6d3bbd7f79b254fff55c584b341c66cb2cfd595c1e9ab7f71c6ad64418",
+    "accuracy": 0.8310368195166027,
+    "loss": 0.5607962031862614,
+    "macro_f1": 0.8498400059719615,
+    "weighted_f1": 0.8297931682050281,
+    "per_class": {
+      "Cracking": {
+        "precision": 0.8240740740740741,
+        "recall": 0.839622641509434,
+        "f1-score": 0.8317757009345794,
+        "support": 106.0
+      },
+      "Layer_shifting": {
+        "precision": 1.0,
+        "recall": 0.8985507246376812,
+        "f1-score": 0.9465648854961832,
+        "support": 138.0
+      },
+      "No_defect": {
+        "precision": 0.934560327198364,
+        "recall": 0.7074303405572755,
+        "f1-score": 0.8052863436123348,
+        "support": 1938.0
+      },
+      "Off_platform": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 22.0
+      },
+      "Spaghetti": {
+        "precision": 0.5692307692307692,
+        "recall": 0.7708333333333334,
+        "f1-score": 0.6548672566371682,
+        "support": 48.0
+      },
+      "Stringing": {
+        "precision": 0.8082376772451046,
+        "recall": 0.985996705107084,
+        "f1-score": 0.8883116883116883,
+        "support": 1214.0
+      },
+      "Under_extrusion": {
+        "precision": 0.6927772126144456,
+        "recall": 0.8642131979695431,
+        "f1-score": 0.7690570299265952,
+        "support": 788.0
+      },
+      "Warping": {
+        "precision": 0.8926553672316384,
+        "recall": 0.9132947976878613,
+        "f1-score": 0.9028571428571428,
+        "support": 173.0
+      }
+    }
+  }
+}

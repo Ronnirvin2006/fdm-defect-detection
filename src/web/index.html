@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8fa">
+  <meta name="description" content="FDM print inspection with live camera, image and video analysis.">
+  <title>FDM Inspect | Print Quality Workspace</title>
+  <link rel="stylesheet" href="/dashboard.css">
+  <script src="/vendor/lucide.min.js" defer></script>
+  <script src="/dashboard.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="FDM Inspect home"><span class="brand-mark"><i data-lucide="scan-line"></i></span><span>FDM <strong>Inspect</strong></span></a>
+    <div class="header-actions"><span id="connection" class="connection"><span class="dot"></span><span>Connecting</span></span>
+      <button id="theme" class="icon-button" aria-label="Switch colour theme" title="Switch light or dark mode"><i data-lucide="moon"></i></button>
+      <button id="export" class="button compact" aria-label="Export CSV" title="Export CSV" disabled><i data-lucide="download"></i><span>Export CSV</span></button>
+    </div>
+  </header>
+  <main>
+    <div class="workspace-title"><div><p class="eyebrow">QUALITY WORKSPACE</p><h1>Print inspection</h1></div><span class="model-badge"><span class="dot"></span>EfficientNetB0 <span id="model-id"></span></span></div>
+    <nav class="tabs" role="tablist" aria-label="Inspection source">
+      <button class="tab active" id="tab-live" role="tab" aria-selected="true" aria-controls="panel-live" data-mode="live"><i data-lucide="video"></i>Live camera</button>
+      <button class="tab" id="tab-image" role="tab" aria-selected="false" aria-controls="panel-image" data-mode="image"><i data-lucide="image"></i>Photo</button>
+      <button class="tab" id="tab-video" role="tab" aria-selected="false" aria-controls="panel-video" data-mode="video"><i data-lucide="film"></i>Video</button>
+    </nav>
+    <div class="inspection-layout">
+      <section class="inspection-source" aria-label="Inspection input">
+        <div class="view-heading"><h2 id="view-title">Live camera</h2><span class="source-status" id="source-status"><span class="dot muted-dot"></span>Offline</span></div>
+        <div id="panel-live" role="tabpanel" aria-labelledby="tab-live">
+          <div class="media-surface" id="camera-surface"><video id="camera-preview" autoplay muted playsinline></video>
+            <div class="empty-state" id="camera-empty"><i data-lucide="camera"></i><h3>Ready when you are</h3><span>Camera is off</span></div>
+            <span class="media-tag" id="camera-tag" hidden><span class="dot"></span>LIVE</span>
+            <div class="frame-guide" id="frame-guide" hidden></div>
+          </div>
+          <div class="source-toolbar">
+            <button class="button primary" id="start-camera"><i data-lucide="video"></i>Start camera</button>
+            <button class="button" id="stop-camera" hidden><i data-lucide="square"></i>Stop</button>
+            <select id="camera-select" aria-label="Camera"><option value="environment">Rear camera</option><option value="user">Front camera</option></select>
+            <button id="snapshot" class="icon-button" disabled title="Capture snapshot" aria-label="Capture snapshot"><i data-lucide="camera"></i></button>
+          </div>
+          <label class="confirm-view"><input type="checkbox" id="confirm-live" disabled><span>Printer and print area are in view</span><i data-lucide="shield-check"></i></label>
+        </div>
+        <div id="panel-image" role="tabpanel" aria-labelledby="tab-image" hidden>
+          <label class="dropzone" id="image-drop" for="image-file"><i data-lucide="image-up"></i><h3>Add a print photo</h3><span>JPG, PNG or WebP</span><span class="button">Choose photo</span><input id="image-file" type="file" accept="image/jpeg,image/png,image/webp" hidden></label>
+          <div class="media-surface" id="photo-surface" hidden><img id="photo-preview" alt="Photo being inspected"></div>
+          <div class="source-toolbar"><button id="replace-photo" class="button" hidden><i data-lucide="upload"></i>Replace photo</button><button id="analyse-photo" class="button primary" disabled><i data-lucide="scan"></i>Analyse photo</button><span class="file-name" id="image-name"></span></div>
+          <label class="confirm-view"><input type="checkbox" id="confirm-image" disabled><span>Printer or printed part is in view</span><i data-lucide="shield-check"></i></label>
+        </div>
+        <div id="panel-video" role="tabpanel" aria-labelledby="tab-video" hidden>
+          <label class="dropzone" id="video-drop" for="video-file"><i data-lucide="film"></i><h3>Add a printer video</h3><span>MP4, WebM or MOV</span><span class="button">Choose video</span><input id="video-file" type="file" accept="video/mp4,video/webm,video/quicktime" hidden></label>
+          <div class="media-surface" id="clip-surface" hidden><video id="clip-preview" playsinline controls></video></div>
+          <div class="source-toolbar"><button id="replace-video" class="button" hidden><i data-lucide="upload"></i>Replace video</button><button id="analyse-video" class="button primary" disabled><i data-lucide="play"></i>Play &amp; analyse</button><span class="file-name" id="video-name"></span></div>
+          <label class="confirm-view"><input type="checkbox" id="confirm-video" disabled><span>Printer and print area are in view</span><i data-lucide="shield-check"></i></label>
+        </div>
+        <div class="source-message" id="source-message" role="status" aria-live="polite">Ready</div>
+        <div class="stream-metrics"><div><span>Analysis rate</span><strong id="metric-rate">&mdash;<small> checks/s</small></strong></div><div><span>Processing</span><strong id="metric-processing">&mdash;<small> ms</small></strong></div><div><span>Round trip</span><strong id="metric-latency">&mdash;<small> ms</small></strong></div><div><span>Analysed frames</span><strong id="metric-frames">0</strong></div></div>
+      </section>
+      <aside class="result-panel" aria-label="Inspection result">
+        <div class="view-heading"><h2>Inspection result</h2><span id="decision-badge" class="badge neutral">Idle</span></div>
+        <div class="decision-block"><span class="section-label">CURRENT CONDITION</span><h2 id="decision">Waiting for a print</h2><p id="decision-detail">No analysis yet</p><div class="confidence-heading"><span>Model confidence</span><strong id="confidence">&mdash;</strong></div><div class="confidence-track"><div id="confidence-fill"></div></div></div>
+        <div class="feedback-section"><h3><i data-lucide="circle-help"></i>Possible causes</h3><ul id="causes"><li class="placeholder">Available after a confirmed result</li></ul></div>
+        <div class="feedback-section"><h3><i data-lucide="list-checks"></i>Recommended checks</h3><ol id="actions"><li class="placeholder">No action recommended yet</li></ol></div>
+        <details id="probability-section"><summary>Class scores<i data-lucide="chevron-down"></i></summary><div id="class-scores"></div></details>
+        <div class="explain-toolbar"><button id="explain" class="button" disabled><i data-lucide="focus"></i>Explain frame</button><span id="result-time"></span></div>
+        <figure id="explanation" hidden><img id="heatmap" alt="Grad-CAM model attention overlay"><figcaption>Model attention, not a defect boundary</figcaption><a id="download-heatmap" download="fdm_attention.jpg">Download image</a></figure>
+      </aside>
+    </div>
+    <section class="history-section"><div class="view-heading"><h2>Inspection activity <span id="history-count">0</span></h2><button id="clear-history" class="icon-button" disabled title="Clear activity" aria-label="Clear activity"><i data-lucide="trash-2"></i></button></div>
+      <div class="table-scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Condition</th><th>Confidence</th><th>Status</th></tr></thead><tbody id="history-body"><tr><td colspan="5" class="empty-history">No inspection activity</td></tr></tbody></table></div>
+    </section>
+    <footer><span><i data-lucide="shield"></i>Decision support &middot; confirm defects before adjusting the printer</span><span>Frames are processed on the host, not stored</span></footer>
+  </main>
+  <canvas id="capture-canvas" hidden></canvas>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

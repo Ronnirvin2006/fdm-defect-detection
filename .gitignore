@@ -2,6 +2,9 @@
 .keras/
 .kaggle/
 data/raw/*
+data/source_archives/
+data/sources/
+data/external_review/
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
@@ -9,6 +12,7 @@ models/*
 !models/.gitkeep
 !models/best_model.keras
 !models/class_names.json
+!models/deployment.json
 outputs/predictions/*
 !outputs/predictions/.gitkeep
 logs/*
@@ -17,3 +21,4 @@ fdm_defect_detection_results/
 expanded_fdm_results/
 __pycache__/
 *.pyc
+.tools/

@@ -1,0 +1,30 @@
+{
+  "model": "models/weak_classes_20261029_183217.keras",
+  "class_names": [
+    "Cracking",
+    "Layer_shifting",
+    "No_defect",
+    "Off_platform",
+    "Spaghetti",
+    "Stringing",
+    "Under_extrusion",
+    "Warping"
+  ],
+  "train_images": 13772,
+  "validation_images": 4427,
+  "evaluation_note": "Grouped validation may overlap source model training history; not an independent test result.",
+  "validation_loss": 0.5253693461418152,
+  "validation_accuracy": 0.8382651805877686,
+  "batch_size": 4,
+  "offline": true,
+  "class_weight": {
+    "0": 3.628151646854344,
+    "1": 3.4200935517601825,
+    "2": 0.9730886846127267,
+    "3": 6.189672345090506,
+    "4": 5.009280595576091,
+    "5": 0.9818801495192887,
+    "6": 1.0098829251527601,
+    "7": 2.691198754148646
+  }
+}

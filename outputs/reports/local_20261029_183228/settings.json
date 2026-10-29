@@ -1,0 +1,23 @@
+{
+  "model": "models/short_experiment_20261029_181102.keras",
+  "output_model": "models/weak_classes_20261029_183217.keras",
+  "epochs": 2,
+  "fine_tune_epochs": 4,
+  "batch_size": 4,
+  "learning_rate": 1e-05,
+  "fine_tune_lr": 1e-06,
+  "patience": 2,
+  "mixed_precision": false,
+  "smoke_test": false,
+  "hours": 0.3333333333333333,
+  "max_per_class": 0,
+  "split": "outputs/reports/local_20261029_181114/split.json",
+  "class_weight_mode": "sqrt",
+  "boost_classes": "Cracking,No_defect,Spaghetti,Under_extrusion",
+  "boost_factor": 1.35,
+  "minutes": 20.0,
+  "dry_run": false,
+  "source_model_sha256": "94ff43c0b8d3feceec1915225940805368cf94b918b292b7d237de9dfd5cc6d9",
+  "seed": 42,
+  "continuation": "Loads saved weights with a new optimiser; not exact interrupted-optimiser resume."
+}

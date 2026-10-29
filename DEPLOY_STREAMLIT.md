@@ -1,5 +1,10 @@
 # Publish FDM Defect Detection Online
 
+The final polished workspace is now the direct Python dashboard described in
+`README.md` and `REMOTE_PHONE_TESTING.md`. Use `bash tools/serve_remote.sh` for the
+remote-phone test. This document is retained for the older optional Streamlit
+interface; deploying `src/app.py` does not serve the new direct dashboard.
+
 The application is a Python/TensorFlow Streamlit app. Use Streamlit Community Cloud for the public hosted version. A static website host cannot load the Keras model or run the image inference code.
 
 ## One-time deployment
@@ -25,34 +30,19 @@ The app has a deployment-specific `src/requirements.txt`. Because the entrypoint
 - Upload a short MP4, MOV, AVI, or WEBM video and analyse evenly spaced frames across the clip.
 - Receive one of eight predictions: Cracking, Layer shifting, No defect, Off platform, Spaghetti, Stringing, Under-extrusion, or Warping.
 - View the class confidence chart and curated causes/corrective checks.
-- Use the **Live Webcam** tab for continuous browser-camera inference. The browser must grant camera permission.
+- Use the **Live camera** tab for a live browser preview with automatic sampled-frame inference. The browser must grant camera permission.
 - Use the camera snapshot tab.
 - Keep a session inspection history and download it as CSV from the sidebar.
 
-The hosted Streamlit app uses WebRTC for browser-camera access; it does not access a visitor's local OpenCV device through the server. The continuous local dashboard remains available with `src/live_dashboard.py` for a computer physically connected to a printer camera.
+The hosted Streamlit app accesses the visitor's camera in the browser and sends compressed JPEG frames through Streamlit's existing connection. There is no WebRTC peer connection and no TURN requirement. The continuous local dashboard remains available with `src/live_dashboard.py` for a computer physically connected to a printer camera. See `REMOTE_PHONE_TESTING.md` to run inference on your laptop and share an HTTPS testing link across different networks.
 
 Video analysis samples at most 36 frames and averages their class probabilities. It reports the overall condition, frame-by-frame sampled predictions, observed classes, confidence, and the same curated feedback used for images. It is a clip-level classification feature; it does not localise a defect, guarantee that a short transient was captured, or replace a validated real-time alarm.
 
 ## Important deployment notes
 
 - No Kaggle credentials or OctoPrint API keys are needed for the public image-classification app.
-- Live WebRTC requires HTTPS, a supported browser, and camera permission. The app requests the phone's rear/environment camera first.
-- For reliable live camera connections between phones on different networks, configure Cloudflare Realtime TURN in Streamlit Cloud secrets. STUN-only connections can fail behind carrier NAT or restrictive firewalls. Create a TURN key in Cloudflare Realtime, then add these values in the app's **Manage app > Settings > Secrets** panel. Keep them out of GitHub:
-
-```toml
-CLOUDFLARE_TURN_KEY_ID = "<turn-key-id>"
-CLOUDFLARE_TURN_API_TOKEN = "<turn-api-token>"
-```
-
-The app requests short-lived ICE credentials from Cloudflare when it starts. As an alternative, a TURN provider that gives static credentials can use:
-
-```toml
-FDM_TURN_URL = "turn:<provider-host>:3478"
-FDM_TURN_USERNAME = "<short-lived-or-provider-username>"
-FDM_TURN_CREDENTIAL = "<provider-credential>"
-```
-
-The app also accepts multiple TURN endpoints in `FDM_TURN_URLS`, separated by commas. Without these secrets, it falls back to the public Google STUN server.
+- Live camera access requires HTTPS (or localhost), a supported browser, and camera permission. The app prefers the rear camera, offers camera selection, and stops capture when hidden or closed.
+- Leave Secrets empty for this camera transport. Old Cloudflare TURN secrets are no longer used.
 - Do not add `.kaggle/access_token` or printer API keys to GitHub.
 - Uploaded images are processed by the hosted app runtime. Do not upload confidential images.
 - The app provides decision support. It does not move printer axes, change heaters, or stop a printer automatically.

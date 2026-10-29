@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
+import threading
 
 
 _FACE_CASCADE = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
+_PROFILE_CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_profileface.xml")
+_FACE_LOCK = threading.Lock()
 
 
 def assess_print_scene(frame: np.ndarray) -> dict:
@@ -25,9 +28,11 @@ def assess_print_scene(frame: np.ndarray) -> dict:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     else:
         gray = frame
-    gray = cv2.resize(gray, (640, 360), interpolation=cv2.INTER_AREA)
+    gray = cv2.resize(gray, (480, 270), interpolation=cv2.INTER_AREA)
     height, width = gray.shape[:2]
-    faces = _FACE_CASCADE.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(48, 48))
+    with _FACE_LOCK:
+        faces = _FACE_CASCADE.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        profile_faces = _PROFILE_CASCADE.detectMultiScale(gray, scaleFactor=1.15, minNeighbors=5, minSize=(40, 40))
     brightness = float(gray.mean())
     sharpness = float(cv2.Laplacian(gray, cv2.CV_32F).var())
     lower_region = gray[int(height * 0.25) :, :]
@@ -35,7 +40,7 @@ def assess_print_scene(frame: np.ndarray) -> dict:
     edge_density = float(np.count_nonzero(edges) / edges.size)
     reasons = []
 
-    if len(faces):
+    if len(faces) or len(profile_faces):
         reasons.append("a human face was detected")
     if brightness < 18:
         reasons.append("the view is too dark")
@@ -46,9 +51,9 @@ def assess_print_scene(frame: np.ndarray) -> dict:
 
     return {
         "valid": not reasons,
-        "status": "Print scene accepted" if not reasons else "Scene rejected",
-        "reason": "; ".join(reasons) if reasons else "Printable structure is visible enough to inspect.",
-        "face_count": int(len(faces)),
+        "status": "View checks passed" if not reasons else "Scene rejected",
+        "reason": "; ".join(reasons) if reasons else "Preliminary view checks passed; printer context must be confirmed by the operator.",
+        "face_count": int(len(faces) + len(profile_faces)),
         "brightness": round(brightness, 2),
         "sharpness": round(sharpness, 2),
         "edge_density": round(edge_density, 5),

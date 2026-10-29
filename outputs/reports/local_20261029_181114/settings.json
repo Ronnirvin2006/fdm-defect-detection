@@ -1,0 +1,21 @@
+{
+  "model": "models/full_dataset_20261029_150330.keras",
+  "output_model": "models/short_experiment_20261029_181102.keras",
+  "epochs": 2,
+  "fine_tune_epochs": 4,
+  "batch_size": 4,
+  "learning_rate": 1e-05,
+  "fine_tune_lr": 1e-06,
+  "patience": 2,
+  "mixed_precision": false,
+  "smoke_test": false,
+  "hours": 0.3333333333333333,
+  "max_per_class": 0,
+  "split": "outputs/reports/local_20261029_150339/split.json",
+  "class_weight_mode": "sqrt",
+  "minutes": 20.0,
+  "dry_run": false,
+  "source_model_sha256": "e6637f6d3bbd7f79b254fff55c584b341c66cb2cfd595c1e9ab7f71c6ad64418",
+  "seed": 42,
+  "continuation": "Loads saved weights with a new optimiser; not exact interrupted-optimiser resume."
+}

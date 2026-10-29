@@ -5,5 +5,4 @@ pillow==10.4.0
 matplotlib==3.9.2
 pandas==2.2.3
 streamlit==1.41.1
-streamlit-webrtc==0.47.9
 opencv-python-headless==4.10.0.84

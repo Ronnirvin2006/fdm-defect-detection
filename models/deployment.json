@@ -1,0 +1,19 @@
+{
+  "selected_checkpoint": "models/weak_classes_20261029_183217.keras",
+  "sha256": "bdc73f91532ef297c914374db867a7b6d47f992ea497875fddc904308a28c48d",
+  "historical_backup": "models/historical_20260727.keras",
+  "report": "outputs/reports/local_20261029_183228",
+  "class_names": [
+    "Cracking",
+    "Layer_shifting",
+    "No_defect",
+    "Off_platform",
+    "Spaghetti",
+    "Stringing",
+    "Under_extrusion",
+    "Warping"
+  ],
+  "grouped_validation_accuracy": 0.8382651805877686,
+  "evaluation_note": "Grouped validation may overlap source model training history; not an independent test result.",
+  "decision": "Selected for demonstration after continuation training; independent physical-printer validation remains pending. Not a merged ensemble."
+}
