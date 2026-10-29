@@ -22,11 +22,14 @@ The app has a deployment-specific `src/requirements.txt`. Because the entrypoint
 ## What visitors can use
 
 - Upload a JPG, JPEG, PNG, BMP, or WEBP image.
+- Upload a short MP4, MOV, AVI, or WEBM video and analyse evenly spaced frames across the clip.
 - Receive one of eight predictions: Cracking, Layer shifting, No defect, Off platform, Spaghetti, Stringing, Under-extrusion, or Warping.
 - View the class confidence chart and curated causes/corrective checks.
 - Use the camera snapshot tab.
 
 The hosted Streamlit app does not access a visitor's local OpenCV device through the server. The continuous local dashboard remains available with `src/live_dashboard.py` for a computer physically connected to a printer camera.
+
+Video analysis samples at most 36 frames and averages their class probabilities. It reports the overall condition, frame-by-frame sampled predictions, observed classes, confidence, and the same curated feedback used for images. It is a clip-level classification feature; it does not localise a defect, guarantee that a short transient was captured, or replace a validated real-time alarm.
 
 ## Important deployment notes
 
