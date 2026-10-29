@@ -13,21 +13,32 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 import streamlit as st
-import tensorflow as tf
 
-from config import IMAGE_SIZE, MODELS_DIR
-from defect_knowledge import recommendation_for
-
-ENABLE_WEBRTC = os.environ.get("FDM_ENABLE_WEBRTC", "0") == "1"
+ENABLE_WEBRTC = os.environ.get("FDM_ENABLE_WEBRTC", "1") == "1"
+WEBRTC_IMPORT_ERROR = None
 if ENABLE_WEBRTC:
-    import av
-    from streamlit_webrtc import RTCConfiguration, VideoProcessorBase, WebRtcMode, webrtc_streamer
+    try:
+        import av
+        from streamlit_webrtc import RTCConfiguration, VideoProcessorBase, WebRtcMode, webrtc_streamer
+    except Exception as exc:
+        ENABLE_WEBRTC = False
+        WEBRTC_IMPORT_ERROR = str(exc)
+        av = None
+        RTCConfiguration = None
+        VideoProcessorBase = object
+        WebRtcMode = None
+        webrtc_streamer = None
 else:
     av = None
     RTCConfiguration = None
     VideoProcessorBase = object
     WebRtcMode = None
     webrtc_streamer = None
+
+import tensorflow as tf
+
+from config import IMAGE_SIZE, MODELS_DIR
+from defect_knowledge import recommendation_for
 
 
 st.set_page_config(page_title="FDM Defect Detection", layout="wide")
@@ -353,10 +364,11 @@ def main() -> None:
             )
         else:
             st.warning(
-                "Live webcam streaming is disabled on this local setup because the native WebRTC package "
-                "is crashing. Use Camera Snapshot for the presentation, or run with FDM_ENABLE_WEBRTC=1 "
-                "after fixing streamlit-webrtc."
+                "Continuous live webcam streaming is unavailable in this deployment. "
+                "Use Camera Snapshot or Upload Video instead."
             )
+            if WEBRTC_IMPORT_ERROR:
+                st.caption(f"WebRTC setup message: {WEBRTC_IMPORT_ERROR}")
 
     with tab_camera:
         camera_image = st.camera_input("Take a live camera snapshot")

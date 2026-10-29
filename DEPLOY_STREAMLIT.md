@@ -25,15 +25,17 @@ The app has a deployment-specific `src/requirements.txt`. Because the entrypoint
 - Upload a short MP4, MOV, AVI, or WEBM video and analyse evenly spaced frames across the clip.
 - Receive one of eight predictions: Cracking, Layer shifting, No defect, Off platform, Spaghetti, Stringing, Under-extrusion, or Warping.
 - View the class confidence chart and curated causes/corrective checks.
+- Use the **Live Webcam** tab for continuous browser-camera inference. The browser must grant camera permission.
 - Use the camera snapshot tab.
 
-The hosted Streamlit app does not access a visitor's local OpenCV device through the server. The continuous local dashboard remains available with `src/live_dashboard.py` for a computer physically connected to a printer camera.
+The hosted Streamlit app uses WebRTC for browser-camera access; it does not access a visitor's local OpenCV device through the server. The continuous local dashboard remains available with `src/live_dashboard.py` for a computer physically connected to a printer camera.
 
 Video analysis samples at most 36 frames and averages their class probabilities. It reports the overall condition, frame-by-frame sampled predictions, observed classes, confidence, and the same curated feedback used for images. It is a clip-level classification feature; it does not localise a defect, guarantee that a short transient was captured, or replace a validated real-time alarm.
 
 ## Important deployment notes
 
 - No Kaggle credentials or OctoPrint API keys are needed for the public image-classification app.
+- Live WebRTC requires HTTPS, a supported browser, and camera permission. If a corporate firewall blocks WebRTC, use Upload Video or Camera Snapshot.
 - Do not add `.kaggle/access_token` or printer API keys to GitHub.
 - Uploaded images are processed by the hosted app runtime. Do not upload confidential images.
 - The app provides decision support. It does not move printer axes, change heaters, or stop a printer automatically.

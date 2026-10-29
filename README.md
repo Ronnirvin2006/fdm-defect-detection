@@ -153,9 +153,9 @@ The Streamlit panel supports:
 - Displaying predicted defect class and confidence.
 - Showing AI feedback, possible causes, and corrective actions.
 
-During presentation, use the upload tab for a known test image or run the separate
-OpenCV dashboard for continuous real-time monitoring. Streamlit's native WebRTC live
-tab is disabled by default on this laptop because that dependency is unstable here.
+During presentation, use the upload tab for a known test image or use the Streamlit
+WebRTC live tab for continuous browser-camera monitoring. If WebRTC is blocked by the
+browser or network, run the separate OpenCV dashboard for local continuous monitoring.
 
 For a continuous local camera feed, prefer `src/live_dashboard.py`. It avoids the
 native WebRTC component that is unstable on this laptop. The nozzle-cleaning value is
