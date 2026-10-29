@@ -2,6 +2,8 @@
 
 Open-source online deployment instructions are in `DEPLOY_STREAMLIT.md`. The hosted image-classification app can be published from this repository through Streamlit Community Cloud. The continuous OpenCV dashboard is for local hardware-connected use.
 
+The Streamlit deployment uses Python 3.13 because the pinned TensorFlow version does not support Python 3.14.
+
 TensorFlow project for classifying camera images of FDM 3D printed parts into defect categories using the Kaggle FDM 3D Printing Defect Dataset.
 
 For the complete architecture, launch guide, and file-by-file explanation, see

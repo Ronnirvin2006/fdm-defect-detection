@@ -10,7 +10,10 @@ The application is a Python/TensorFlow Streamlit app. Use Streamlit Community Cl
 4. Select branch `main`.
 5. Set the main file to `src/app.py`.
 6. Choose an app subdomain such as `fdm-defect-detection`.
-7. Deploy.
+7. Open **Advanced settings** and select Python **3.13**. TensorFlow 2.20.0 does not provide a compatible wheel for Python 3.14.
+8. Deploy.
+
+If the app was already created with Python 3.14, Streamlit requires deleting and redeploying the app to change its Python version. Select Python 3.13 during the new deployment. The committed `runtime.txt` records the intended version, but still verify the dropdown because Streamlit's deployment settings take precedence.
 
 The public address will be similar to `https://fdm-defect-detection.streamlit.app`. The exact address is assigned by Streamlit.
 
