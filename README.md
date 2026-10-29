@@ -105,7 +105,9 @@ Launch the stable continuous OpenCV dashboard (recommended for local live monito
 
 Open `http://127.0.0.1:8765`. This reads camera device `0`, continuously runs the
 classifier, overlays the detected class, and shows AI feedback in the browser.
-The camera is released automatically when the page closes. Use another camera with
+The scene gate rejects faces, flat background views, and unusable frames before the
+defect model runs. The dashboard also accepts image and video uploads, keeps a short
+inspection history, and exports it as CSV. The camera is released automatically when the page closes. Use another camera with
 `FDM_CAMERA_INDEX=1`, or stop the server completely with `Ctrl+C`.
 
 Optional real OctoPrint telemetry:

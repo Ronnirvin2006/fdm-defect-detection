@@ -10,6 +10,7 @@ from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -24,6 +25,7 @@ import tensorflow as tf
 
 from config import IMAGE_SIZE, MODELS_DIR
 from defect_knowledge import recommendation_for
+from scene_guard import assess_print_scene, blocked_prediction
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -107,6 +109,7 @@ class SharedState:
         self.nozzle_cleaned = False
         self.nozzle_cleaned_at = None
         self.history = deque(maxlen=120)
+        self.video_result = None
         self.model = {
             "architecture": "EfficientNetB0",
             "input_size": "224 x 224",
@@ -127,6 +130,7 @@ class SharedState:
             "corrective_actions": [],
             "probabilities": [],
             "machine_guidance": machine_guidance("No_defect"),
+            "scene": {"valid": False, "status": "Waiting", "reason": "Waiting for a camera frame."},
             "updated_at": None,
         }
         self.telemetry = disconnected_telemetry("OctoPrint is not configured")
@@ -158,6 +162,7 @@ class SharedState:
                 "telemetry": dict(self.telemetry),
                 "model": dict(self.model),
                 "history": list(self.history)[-24:],
+                "video_result": self.video_result,
                 "nozzle_cleaning": {
                     "confirmed_by_operator": self.nozzle_cleaned,
                     "confirmed_at": self.nozzle_cleaned_at,
@@ -269,6 +274,10 @@ class DefectPredictor:
                 probabilities = np.mean(self.probability_history, axis=0)
             else:
                 probabilities = current_probabilities
+        return self.from_probabilities(probabilities)
+
+    def from_probabilities(self, probabilities: np.ndarray) -> dict:
+        probabilities = np.asarray(probabilities, dtype=np.float32)
         order = np.argsort(probabilities)[::-1]
         top_index = int(order[0])
         class_name = self.class_names[top_index]
@@ -291,9 +300,87 @@ class DefectPredictor:
                 {"class_name": self.class_names[int(index)], "confidence": float(probabilities[index] * 100)}
                 for index in order
             ],
+            "raw_probabilities": probabilities.tolist(),
             "machine_guidance": machine_guidance(class_name),
+            "scene": {"valid": True, "status": "Print scene accepted", "reason": "Printable structure is visible enough to inspect."},
             "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
+
+
+def analyse_video(predictor: DefectPredictor, video_bytes: bytes, suffix: str = ".mp4") -> dict:
+    """Sample an uploaded clip and return a guarded multi-frame classification."""
+    predictions = []
+    scene_checks = []
+    predictions_dir = PROJECT_ROOT / "outputs" / "predictions"
+    predictions_dir.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=predictions_dir) as temporary_dir:
+        video_path = Path(temporary_dir) / f"input{suffix}"
+        video_path.write_bytes(video_bytes)
+        capture = cv2.VideoCapture(str(video_path))
+        if not capture.isOpened():
+            raise ValueError("The uploaded video could not be opened. Use MP4, MOV, AVI, or WEBM.")
+        total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = float(capture.get(cv2.CAP_PROP_FPS))
+        fps = fps if np.isfinite(fps) and fps > 0 else 0.0
+        if total_frames <= 0:
+            capture.release()
+            raise ValueError("The video does not contain readable frames.")
+        selected = set(np.linspace(0, total_frames - 1, min(36, total_frames), dtype=int).tolist())
+        index = 0
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            if index in selected:
+                scene = assess_print_scene(frame)
+                scene_checks.append({"time": round(index / fps, 2) if fps else float(index), "scene": scene})
+                if scene["valid"]:
+                    predictions.append((index, predictor.predict(frame, use_history=False)))
+            index += 1
+        capture.release()
+
+    if not predictions:
+        scene = scene_checks[0]["scene"] if scene_checks else {"valid": False, "reason": "No readable frame."}
+        blocked = blocked_prediction(scene)
+        return {
+            "prediction": blocked,
+            "sampled_frames": len(scene_checks),
+            "valid_frames": 0,
+            "duration": (total_frames / fps) if fps else None,
+            "observed_problems": [],
+            "timeline": [],
+            "scene_checks": scene_checks,
+        }
+
+    raw = np.mean([prediction["raw_probabilities"] for _, prediction in predictions], axis=0)
+    overall = predictor.from_probabilities(raw)
+    timeline = []
+    for index, prediction in predictions:
+        timeline.append(
+            {
+                "time": round(index / fps, 2) if fps else float(index),
+                "class_name": prediction["class_name"],
+                "confidence": round(prediction["confidence"], 2),
+            }
+        )
+    counts = {}
+    for row in timeline:
+        counts[row["class_name"]] = counts.get(row["class_name"], 0) + 1
+    observed = [name for name, count in sorted(counts.items(), key=lambda item: -item[1]) if name != "No_defect"]
+    overall["scene"] = {
+        "valid": True,
+        "status": "Print scene accepted",
+        "reason": f"{len(predictions)} of {len(scene_checks)} sampled frames contained printable structure.",
+    }
+    return {
+        "prediction": overall,
+        "sampled_frames": len(scene_checks),
+        "valid_frames": len(predictions),
+        "duration": (total_frames / fps) if fps else None,
+        "observed_problems": observed,
+        "timeline": timeline,
+        "scene_checks": scene_checks,
+    }
 
 
 class CameraMonitor(threading.Thread):
@@ -354,7 +441,12 @@ class CameraMonitor(threading.Thread):
                 now = time.monotonic()
                 if now - last_prediction >= PREDICTION_INTERVAL:
                     try:
-                        prediction = self.predictor.predict(frame)
+                        scene = assess_print_scene(frame)
+                        prediction = (
+                            self.predictor.predict(frame)
+                            if scene["valid"]
+                            else blocked_prediction(scene)
+                        )
                         self.state.set_prediction(prediction, "Live camera")
                     except Exception as exc:
                         with self.state.lock:
@@ -412,6 +504,10 @@ INDEX_HTML = r"""<!doctype html>
     .video-wrap img { width:100%; height:100%; object-fit:contain; display:block; }
     .tools { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:14px 0 0; color:var(--muted); }
     input[type=file] { max-width:320px; }
+    .upload-block { display:grid; gap:7px; padding:12px 0 0; }
+    .upload-block + .upload-block { border-top:1px solid var(--line); margin-top:12px; }
+    .video-result { margin-top:12px; padding:12px; border:1px solid var(--line); background:var(--panel); }
+    .video-result strong { color:var(--cyan); }
     .prediction { display:grid; grid-template-columns:minmax(170px,1fr) 130px 110px minmax(130px,1fr); gap:16px; padding:18px 0; border-bottom:1px solid var(--line); }
     .label { color:var(--muted); font-size:12px; text-transform:uppercase; }
     .value { font-size:24px; font-weight:650; margin-top:3px; }
@@ -452,6 +548,12 @@ INDEX_HTML = r"""<!doctype html>
         <input id="image-upload" type="file" accept="image/png,image/jpeg,image/webp,image/bmp">
         <span id="upload-status">Live camera is active. Uploaded photos use the same model.</span>
       </div>
+      <div class="upload-block">
+        <label for="video-upload">Upload video:</label>
+        <input id="video-upload" type="file" accept="video/mp4,video/quicktime,video/x-msvideo,video/webm">
+        <span id="video-status" class="note">The clip is sampled frame by frame and temporary data is deleted after analysis.</span>
+        <div id="video-result" class="video-result" hidden><strong id="video-summary"></strong><div id="video-problems"></div></div>
+      </div>
       <div class="prediction">
         <div><div class="label">Detected condition</div><div id="class-name" class="value">Waiting</div></div>
         <div><div class="label">Confidence</div><div id="confidence" class="value">0.0%</div></div>
@@ -479,6 +581,7 @@ INDEX_HTML = r"""<!doctype html>
         <div class="grid">
           <div class="metric"><span class="label">Status</span><strong id="model-status">Loading</strong></div>
           <div class="metric"><span class="label">Input</span><strong id="model-input">224 × 224</strong></div>
+          <div class="metric"><span class="label">Scene gate</span><strong id="scene-status">Waiting</strong></div>
         </div>
         <p id="model-classes" class="model-classes"></p>
       </div>
@@ -538,6 +641,7 @@ INDEX_HTML = r"""<!doctype html>
         text('confidence', `${data.prediction.confidence.toFixed(1)}%`);
         text('risk', data.prediction.risk);
         text('source', data.prediction.source || '--');
+        text('scene-status', data.prediction.scene?.status || 'Waiting');
         text('description', data.prediction.description);
         list('causes', data.prediction.possible_causes);
         list('actions', data.prediction.corrective_actions);
@@ -592,6 +696,30 @@ INDEX_HTML = r"""<!doctype html>
         refresh();
       } catch (error) {
         text('upload-status', `Upload prediction failed: ${error.message}`);
+      }
+    });
+    document.getElementById('video-upload').addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      text('video-status', `Analysing ${file.name}...`);
+      try {
+        const response = await fetch('/api/upload-video', {
+          method: 'POST',
+          headers: {'Content-Type': file.type || 'video/mp4'},
+          body: file
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Video analysis failed');
+        const result = payload.result;
+        const prediction = result.prediction;
+        const videoResult = document.getElementById('video-result');
+        videoResult.hidden = false;
+        text('video-summary', `${prediction.class_name} · ${Number(prediction.confidence).toFixed(1)}% · ${result.valid_frames}/${result.sampled_frames} valid frames`);
+        document.getElementById('video-problems').textContent = result.observed_problems.length ? `Observed: ${result.observed_problems.join(', ')}` : prediction.scene.reason;
+        text('video-status', `Analysis complete for ${file.name}.`);
+        refresh();
+      } catch (error) {
+        text('video-status', `Video analysis failed: ${error.message}`);
       }
     });
     refresh(); setInterval(refresh, 1000);
@@ -674,9 +802,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 image = Image.open(BytesIO(image_bytes)).convert("RGB")
                 rgb = np.asarray(image, dtype=np.uint8)
                 frame = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-                prediction = self.state.predictor.predict(frame, use_history=False)
+                scene = assess_print_scene(frame)
+                prediction = (
+                    self.state.predictor.predict(frame, use_history=False)
+                    if scene["valid"]
+                    else blocked_prediction(scene)
+                )
                 self.state.set_prediction(prediction, "Uploaded image")
                 self.send_bytes(json.dumps({"ok": True, "prediction": prediction}).encode("utf-8"), "application/json")
+            except Exception as exc:
+                payload = json.dumps({"ok": False, "error": str(exc)}).encode("utf-8")
+                self.send_bytes(payload, "application/json", HTTPStatus.BAD_REQUEST)
+            return
+        if self.path == "/api/upload-video":
+            try:
+                content_length = int(self.headers.get("Content-Length", "0"))
+                if content_length <= 0 or content_length > 200 * 1024 * 1024:
+                    raise ValueError("Video must be between 1 byte and 200 MB.")
+                video_bytes = self.rfile.read(content_length)
+                result = analyse_video(self.state.predictor, video_bytes)
+                self.state.set_prediction(result["prediction"], "Uploaded video")
+                self.state.video_result = result
+                self.send_bytes(json.dumps({"ok": True, "result": result}).encode("utf-8"), "application/json")
             except Exception as exc:
                 payload = json.dumps({"ok": False, "error": str(exc)}).encode("utf-8")
                 self.send_bytes(payload, "application/json", HTTPStatus.BAD_REQUEST)
