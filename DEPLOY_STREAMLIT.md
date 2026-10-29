@@ -17,6 +17,8 @@ If the app was already created with Python 3.14, Streamlit requires deleting and
 
 The public address will be similar to `https://fdm-defect-detection.streamlit.app`. The exact address is assigned by Streamlit.
 
+The app has a deployment-specific `src/requirements.txt`. Because the entrypoint is `src/app.py`, Streamlit can use this smaller dependency file instead of installing the training and Kaggle tooling from the repository root.
+
 ## What visitors can use
 
 - Upload a JPG, JPEG, PNG, BMP, or WEBP image.
