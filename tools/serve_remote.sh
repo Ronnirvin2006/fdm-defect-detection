@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 port="${FDM_REMOTE_PORT:-8502}"
-if ! .venv/bin/python -c 'import socket,sys; s=socket.socket(); s.bind(("127.0.0.1",int(sys.argv[1]))); s.close()' "$port"; then
+if ! .venv/bin/python -c 'import socket,sys; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(("127.0.0.1",int(sys.argv[1]))); s.close()' "$port"; then
   echo "Port $port is busy. Choose a free port, e.g. FDM_REMOTE_PORT=$((port + 1)) bash tools/serve_remote.sh"
   exit 1
 fi
