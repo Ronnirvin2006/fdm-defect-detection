@@ -36,7 +36,23 @@ Video analysis samples at most 36 frames and averages their class probabilities.
 ## Important deployment notes
 
 - No Kaggle credentials or OctoPrint API keys are needed for the public image-classification app.
-- Live WebRTC requires HTTPS, a supported browser, and camera permission. If a corporate firewall blocks WebRTC, use Upload Video or Camera Snapshot.
+- Live WebRTC requires HTTPS, a supported browser, and camera permission. The app requests the phone's rear/environment camera first.
+- For reliable live camera connections between phones on different networks, configure Cloudflare Realtime TURN in Streamlit Cloud secrets. STUN-only connections can fail behind carrier NAT or restrictive firewalls. Create a TURN key in Cloudflare Realtime, then add these values in the app's **Manage app > Settings > Secrets** panel. Keep them out of GitHub:
+
+```toml
+CLOUDFLARE_TURN_KEY_ID = "<turn-key-id>"
+CLOUDFLARE_TURN_API_TOKEN = "<turn-api-token>"
+```
+
+The app requests short-lived ICE credentials from Cloudflare when it starts. As an alternative, a TURN provider that gives static credentials can use:
+
+```toml
+FDM_TURN_URL = "turn:<provider-host>:3478"
+FDM_TURN_USERNAME = "<short-lived-or-provider-username>"
+FDM_TURN_CREDENTIAL = "<provider-credential>"
+```
+
+The app also accepts multiple TURN endpoints in `FDM_TURN_URLS`, separated by commas. Without these secrets, it falls back to the public Google STUN server.
 - Do not add `.kaggle/access_token` or printer API keys to GitHub.
 - Uploaded images are processed by the hosted app runtime. Do not upload confidential images.
 - The app provides decision support. It does not move printer axes, change heaters, or stop a printer automatically.

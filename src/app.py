@@ -1,12 +1,12 @@
 import json
 import os
 import threading
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 os.environ.setdefault("KERAS_HOME", str(Path(__file__).resolve().parents[1] / ".keras"))
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 import cv2
@@ -41,11 +41,59 @@ import tensorflow as tf
 
 from config import IMAGE_SIZE, MODELS_DIR
 from defect_knowledge import recommendation_for
+from scene_guard import assess_print_scene, blocked_prediction
 
 
-st.set_page_config(page_title="FDM Defect Detection", layout="wide")
+st.set_page_config(page_title="FDM Quality Desk", page_icon="F", layout="wide", initial_sidebar_state="expanded")
+
+
+def deployment_secret(name: str) -> str:
+    """Read a deployment secret without requiring a local secrets file."""
+    value = os.environ.get(name, "")
+    if value:
+        return value
+    try:
+        return str(st.secrets.get(name, ""))
+    except Exception:
+        return ""
+
+
+def cloudflare_turn_servers() -> list[dict]:
+    """Fetch short-lived TURN credentials when Cloudflare secrets are configured."""
+    key_id = deployment_secret("CLOUDFLARE_TURN_KEY_ID")
+    api_token = deployment_secret("CLOUDFLARE_TURN_API_TOKEN")
+    if not key_id or not api_token:
+        return []
+    url = f"https://rtc.live.cloudflare.com/v1/turn/keys/{key_id}/credentials/generate-ice-servers"
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {api_token}", "User-Agent": "fdm-defect-detection"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        return payload.get("iceServers", [])
+    except Exception:
+        return []
+
+
+turn_urls = [item.strip() for item in deployment_secret("FDM_TURN_URLS").split(",") if item.strip()]
+if not turn_urls and deployment_secret("FDM_TURN_URL"):
+    turn_urls = [deployment_secret("FDM_TURN_URL")]
+turn_username = deployment_secret("FDM_TURN_USERNAME")
+turn_credential = deployment_secret("FDM_TURN_CREDENTIAL")
+ice_servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+ice_servers.extend(cloudflare_turn_servers())
+if turn_urls and turn_username and turn_credential:
+    ice_servers.append(
+        {
+            "urls": turn_urls,
+            "username": turn_username,
+            "credential": turn_credential,
+        }
+    )
 RTC_CONFIGURATION = (
-    RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+    RTCConfiguration({"iceServers": ice_servers})
     if ENABLE_WEBRTC
     else None
 )
@@ -55,22 +103,35 @@ def inject_dashboard_style() -> None:
     st.markdown(
         """
         <style>
-        [data-testid="stAppViewContainer"] { background: #0f1418; }
-        [data-testid="stHeader"] { background: rgba(15, 20, 24, 0.92); }
-        [data-testid="stSidebar"] { background: #131a1f; border-right: 1px solid #26343b; }
-        .fdm-hero { padding: 1.1rem 1.25rem; border: 1px solid #2b4149; border-radius: 12px;
-            background: linear-gradient(120deg, #142a31, #141b21 58%, #17222a); margin-bottom: 1rem; }
-        .fdm-kicker { color: #63d6dc; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
-        .fdm-hero h1 { margin: 0.25rem 0 0.35rem; font-size: clamp(1.55rem, 3vw, 2.35rem); }
-        .fdm-hero p { margin: 0; color: #b7c5ca; }
-        .fdm-badge { display: inline-block; margin-top: 0.8rem; padding: 0.28rem 0.62rem;
-            border-radius: 999px; background: #173b3d; color: #8ce9e3; font-size: 0.78rem; }
-        .fdm-section { color: #d9eef0; font-weight: 700; letter-spacing: 0.02em; margin: 0.5rem 0; }
+        [data-testid="stAppViewContainer"] { background: #101419; }
+        [data-testid="stHeader"] { background: #101419; border-bottom: 1px solid #283039; }
+        [data-testid="stSidebar"] { background: #151a20; border-right: 1px solid #283039; }
+        [data-testid="stSidebar"] > div:first-child { padding-top: 1.1rem; }
+        .block-container { max-width: 1440px; padding-top: 1.6rem; padding-bottom: 2.5rem; }
+        .fdm-hero { padding: 1.3rem 1.45rem; border: 1px solid #303a44; border-radius: 8px;
+            background: #171d24; margin-bottom: 1rem; }
+        .fdm-kicker { color: #57c7c4; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; }
+        .fdm-hero h1 { margin: 0.35rem 0 0.25rem; color: #f2f5f7; font-size: clamp(1.65rem, 3vw, 2.45rem); letter-spacing: 0; }
+        .fdm-hero p { margin: 0; color: #aeb8c0; max-width: 760px; }
+        .fdm-badge { display: inline-block; margin-top: 0.9rem; padding: 0.28rem 0.62rem;
+            border: 1px solid #2d6869; border-radius: 5px; background: #173033; color: #8fe2dd; font-size: 0.76rem; }
+        .fdm-section { color: #eef2f4; font-size: 1rem; font-weight: 700; letter-spacing: 0; margin: 0.7rem 0 0.45rem; }
         .fdm-muted { color: #9eafb5; font-size: 0.83rem; }
-        div[data-testid="stMetric"] { background: #151f25; border: 1px solid #293a42; padding: 0.8rem;
-            border-radius: 9px; }
+        div[data-testid="stMetric"] { background: #171d24; border: 1px solid #303a44; padding: 0.8rem;
+            border-radius: 6px; min-height: 6.3rem; }
         div[data-testid="stMetricLabel"] { color: #9eafb5; }
-        .fdm-footnote { color: #93a6ad; border-top: 1px solid #26343b; padding-top: 0.8rem; font-size: 0.82rem; }
+        div[data-testid="stMetricValue"] { color: #f4f7f8; }
+        .fdm-panel { background: #171d24; border: 1px solid #303a44; border-radius: 6px; padding: 1rem; }
+        .fdm-statusline { display:flex; align-items:center; gap:.5rem; color:#b7c2c9; font-size:.84rem; }
+        .fdm-statusdot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#57c7c4; }
+        .fdm-footnote { color: #93a6ad; border-top: 1px solid #283039; padding-top: 0.9rem; font-size: 0.82rem; }
+        div[data-baseweb="tab-list"] { gap: 1.3rem; border-bottom: 1px solid #303a44; }
+        button[data-baseweb="tab"] { color: #9eafb5; padding: .7rem .15rem; }
+        button[data-baseweb="tab"][aria-selected="true"] { color: #72d8d3; }
+        button[kind="primary"] { background: #1f8f91; border-color: #2aa9a6; }
+        button[kind="primary"]:hover { background: #2aa9a6; }
+        [data-testid="stFileUploader"] { background: #171d24; border: 1px dashed #49616b; border-radius: 6px; padding: .25rem; }
+        @media (max-width: 800px) { .block-container { padding-left: 1rem; padding-right: 1rem; } }
         </style>
         """,
         unsafe_allow_html=True,
@@ -116,10 +177,10 @@ def show_workspace_summary(class_names: list[str]) -> None:
     history = st.session_state["scan_history"]
     latest = st.session_state.get("last_inspection")
     st.markdown(
-        "<div class='fdm-hero'><div class='fdm-kicker'>FDM inspection workspace</div>"
-        "<h1>Print quality, visible at a glance.</h1>"
-        "<p>Inspect an image, uploaded clip, or live camera stream with the retained EfficientNetB0 model.</p>"
-        "<span class='fdm-badge'>Model online · 8 trained classes · 224 × 224 input</span></div>",
+        "<div class='fdm-hero'><div class='fdm-kicker'>FDM quality desk / inspection workspace</div>"
+        "<h1>Know when a print starts to drift.</h1>"
+        "<p>Review a print image, analyse a short clip, or use a live camera view with one consistent defect-classification workflow.</p>"
+        "<span class='fdm-badge'>Model ready · EfficientNetB0 · scene gate enabled · 8 classes</span></div>",
         unsafe_allow_html=True,
     )
     cols = st.columns(4)
@@ -136,17 +197,17 @@ def show_workspace_summary(class_names: list[str]) -> None:
 
 def show_sidebar(class_names: list[str]) -> None:
     with st.sidebar:
-        st.markdown("## FDM Quality Desk")
-        st.caption("AI-assisted visual inspection")
+        st.markdown("# FDM Quality Desk")
+        st.caption("Operator-focused print inspection")
         st.divider()
         st.markdown("### System status")
-        st.success("Model loaded")
+        st.markdown("<div class='fdm-statusline'><span class='fdm-statusdot'></span><span>Model loaded and ready</span></div>", unsafe_allow_html=True)
         st.write("**Architecture:** EfficientNetB0")
         st.write("**Input:** 224 × 224 RGB")
         st.write(f"**Coverage:** {len(class_names)} classes")
         st.divider()
         st.markdown("### Inspection sources")
-        st.write("Image upload · Video upload · Live webcam · Snapshot")
+        st.write("Image upload  ·  Video review  ·  Live webcam  ·  Snapshot")
         st.caption("Browser camera access requires HTTPS and permission.")
         st.divider()
         st.markdown("### Session tools")
@@ -218,7 +279,29 @@ def prediction_payload(class_names, probabilities, order) -> dict:
         "predicted_class": predicted_class,
         "confidence": confidence,
         "knowledge": knowledge,
+        "scene": {"valid": True, "status": "Print scene accepted", "reason": "Printable structure is visible enough to inspect."},
     }
+
+
+def scene_payload(image: Image.Image, class_names, probabilities, order) -> dict:
+    frame = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+    scene = assess_print_scene(frame)
+    if scene["valid"]:
+        payload = prediction_payload(class_names, probabilities, order)
+        payload["scene"] = scene
+        return payload
+    blocked = blocked_prediction(scene)
+    blocked["predicted_class"] = blocked["class_name"]
+    blocked["class_names"] = class_names
+    blocked["probabilities"] = np.zeros(len(class_names), dtype=np.float32)
+    blocked["order"] = np.arange(len(class_names))
+    blocked["confidence"] = 0.0
+    blocked["knowledge"] = {
+        "description": blocked["description"],
+        "possible_causes": blocked["possible_causes"],
+        "corrective_actions": blocked["corrective_actions"],
+    }
+    return blocked
 
 
 def risk_level(predicted_class: str, confidence: float) -> str:
@@ -285,7 +368,8 @@ def image_quality(image: Image.Image) -> dict:
 
 def show_prediction(image: Image.Image) -> dict | None:
     try:
-        payload = prediction_payload(*predict(image))
+        class_names, probabilities, order = predict(image)
+        payload = scene_payload(image, class_names, probabilities, order)
     except Exception as exc:
         st.error(f"Prediction failed: {exc}")
         return None
@@ -294,7 +378,7 @@ def show_prediction(image: Image.Image) -> dict | None:
     with left:
         st.image(image, caption="Input image", use_container_width=True)
     with right:
-        st.metric("Prediction", payload["predicted_class"])
+        st.metric("Decision", payload["predicted_class"])
         st.metric("Confidence", f"{payload['confidence']:.2f}%")
         st.write("Class confidence")
         st.bar_chart(confidence_chart(payload))
@@ -307,7 +391,9 @@ def show_prediction(image: Image.Image) -> dict | None:
     if quality["sharpness"] < 35:
         st.warning("Image quality check: the frame appears blurred. Hold the camera steady and rescan.")
 
-    st.subheader("AI Feedback")
+    if not payload["scene"]["valid"]:
+        st.warning(f"Scene rejected: {payload['scene']['reason']}")
+    st.subheader("AI feedback")
     st.write(payload["knowledge"]["description"])
     show_feedback(payload)
     return payload
@@ -364,25 +450,45 @@ def analyze_video(video_file) -> dict:
     batch = np.stack(
         [np.asarray(frame.resize(IMAGE_SIZE), dtype=np.float32) for frame in frames], axis=0
     )
-    probabilities = model.predict(batch, verbose=0)
-    mean_probabilities = probabilities.mean(axis=0)
-    mean_order = np.argsort(mean_probabilities)[::-1]
-    payload = prediction_payload(class_names, mean_probabilities, mean_order)
+    raw_probabilities = model.predict(batch, verbose=0)
+    valid_indices = []
+    scenes = []
+    for index, frame in enumerate(frames):
+        scene = assess_print_scene(cv2.cvtColor(np.asarray(frame), cv2.COLOR_RGB2BGR))
+        scenes.append(scene)
+        if scene["valid"]:
+            valid_indices.append(index)
+    if not valid_indices:
+        payload = blocked_prediction(scenes[0])
+        payload["predicted_class"] = payload["class_name"]
+        payload["class_names"] = class_names
+        payload["probabilities"] = np.zeros(len(class_names), dtype=np.float32)
+        payload["order"] = np.arange(len(class_names))
+        payload["knowledge"] = {"description": payload["description"], "possible_causes": payload["possible_causes"], "corrective_actions": payload["corrective_actions"]}
+        probabilities = raw_probabilities
+        mean_probabilities = np.zeros(len(class_names), dtype=np.float32)
+    else:
+        probabilities = raw_probabilities[valid_indices]
+        mean_probabilities = probabilities.mean(axis=0)
+        mean_order = np.argsort(mean_probabilities)[::-1]
+        payload = prediction_payload(class_names, mean_probabilities, mean_order)
+        payload["scene"] = {"valid": True, "status": "Print scene accepted", "reason": "At least one printable frame was accepted."}
 
     timeline = []
-    for timestamp, frame_probabilities in zip(timestamps, probabilities):
+    for frame_index, (timestamp, frame_probabilities) in enumerate(zip(timestamps, raw_probabilities)):
         order = np.argsort(frame_probabilities)[::-1]
         top_index = int(order[0])
         timeline.append(
             {
                 "Time (s)": round(timestamp, 2),
-                "Prediction": class_names[top_index],
-                "Confidence (%)": round(float(frame_probabilities[top_index] * 100), 2),
+                "Prediction": class_names[top_index] if scenes[frame_index]["valid"] else "Scene rejected",
+                "Confidence (%)": round(float(frame_probabilities[top_index] * 100), 2) if scenes[frame_index]["valid"] else 0.0,
+                "Scene": scenes[frame_index]["status"],
             }
         )
 
     class_counts = pd.Series(row["Prediction"] for row in timeline).value_counts()
-    observed_problems = [name for name in class_counts.index if name != "No_defect"]
+    observed_problems = [name for name in class_counts.index if name not in {"No_defect", "Scene rejected"}]
     return {
         "payload": payload,
         "frames": frames,
@@ -393,6 +499,7 @@ def analyze_video(video_file) -> dict:
         "sampled_frames": len(frames),
         "class_counts": class_counts,
         "observed_problems": observed_problems,
+        "valid_frames": len(valid_indices),
     }
 
 
@@ -408,14 +515,11 @@ def show_video_analysis(video_file) -> dict | None:
 
     payload = result["payload"]
     duration_text = f"{result['duration']:.1f} s" if result["duration"] else "unknown duration"
-    st.caption(
-        f"Analysed {result['sampled_frames']} evenly spaced frames from {duration_text}. "
-        "The uploaded video is removed after analysis."
-    )
+    st.caption(f"Analysed {result['sampled_frames']} evenly spaced frames from {duration_text}; {result['valid_frames']} frames passed the scene gate. The uploaded video is removed after analysis.")
     st.subheader("Video result")
     left, right = st.columns([1, 1])
     with left:
-        st.metric("Most likely overall condition", payload["predicted_class"])
+        st.metric("Overall decision", payload["predicted_class"])
         st.metric("Average confidence", f"{payload['confidence']:.2f}%")
     with right:
         if result["observed_problems"]:
@@ -423,7 +527,9 @@ def show_video_analysis(video_file) -> dict | None:
             for problem in result["observed_problems"]:
                 st.write(f"- {problem} ({int(result['class_counts'][problem])} frame(s))")
         else:
-            st.write("No trained defect was the top prediction in the sampled frames.")
+            st.write("No accepted frame produced a trained defect decision.")
+    if not payload["scene"]["valid"]:
+        st.warning(f"Scene rejected: {payload['scene']['reason']}")
 
     st.subheader("AI Feedback")
     st.write(payload["knowledge"]["description"])
@@ -457,7 +563,7 @@ class LiveDefectProcessor(VideoProcessorBase):
             pil_image = Image.fromarray(rgb)
             probabilities = self.model.predict(preprocess(pil_image), verbose=0)[0]
             order = np.argsort(probabilities)[::-1]
-            payload = prediction_payload(self.class_names, probabilities, order)
+            payload = scene_payload(pil_image, self.class_names, probabilities, order)
             feedback = ai_feedback_text(payload)[0].replace("AI feedback: ", "")
             with self.lock:
                 self.last_prediction = payload["predicted_class"]
@@ -468,7 +574,7 @@ class LiveDefectProcessor(VideoProcessorBase):
             label = f"{self.last_prediction} ({self.last_confidence:.1f}%)"
             feedback = self.last_feedback
 
-        color = (0, 220, 0) if self.last_prediction == "No_defect" else (0, 165, 255)
+        color = (0, 220, 0) if self.last_prediction == "No_defect" else ((0, 165, 255) if self.last_prediction != "Out_of_scope" else (0, 180, 220))
         cv2.rectangle(image, (12, 12), (620, 92), (0, 0, 0), thickness=-1)
         cv2.putText(image, label, (24, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
         cv2.putText(image, feedback[:68], (24, 78), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
@@ -483,7 +589,7 @@ def main() -> None:
     show_workspace_summary(class_names)
 
     tab_upload, tab_video, tab_live, tab_camera = st.tabs(
-        ["Image Inspection", "Video Review", "Live Camera", "Snapshot"]
+        ["Inspect image", "Review video", "Live camera", "Snapshot"]
     )
 
     with tab_upload:
@@ -522,13 +628,16 @@ def main() -> None:
     with tab_live:
         if ENABLE_WEBRTC:
             st.markdown("<div class='fdm-section'>Continuous browser-camera inspection</div>", unsafe_allow_html=True)
-            st.caption("Start the camera, allow browser permission, and point it at the print. Prediction refreshes every few frames.")
+            st.caption("On phones, the app requests the rear/environment camera first. Allow camera permission and point it at the print; prediction refreshes every few frames.")
             webrtc_streamer(
                 key="fdm-live-detection",
                 mode=WebRtcMode.SENDRECV,
                 rtc_configuration=RTC_CONFIGURATION,
                 video_processor_factory=LiveDefectProcessor,
-                media_stream_constraints={"video": True, "audio": False},
+                media_stream_constraints={
+                    "video": {"facingMode": {"ideal": "environment"}},
+                    "audio": False,
+                },
                 async_processing=True,
             )
         else:
