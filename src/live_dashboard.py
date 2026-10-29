@@ -310,6 +310,7 @@ class DefectPredictor:
 def analyse_video(predictor: DefectPredictor, video_bytes: bytes, suffix: str = ".mp4") -> dict:
     """Sample an uploaded clip and return a guarded multi-frame classification."""
     predictions = []
+    raw_predictions = []
     scene_checks = []
     predictions_dir = PROJECT_ROOT / "outputs" / "predictions"
     predictions_dir.mkdir(parents=True, exist_ok=True)
@@ -334,14 +335,24 @@ def analyse_video(predictor: DefectPredictor, video_bytes: bytes, suffix: str = 
             if index in selected:
                 scene = assess_print_scene(frame)
                 scene_checks.append({"time": round(index / fps, 2) if fps else float(index), "scene": scene})
+                raw_prediction = predictor.predict(frame, use_history=False)
+                raw_prediction["scene"] = scene
+                raw_prediction["defect_decision"] = "Accepted" if scene["valid"] else "Not evaluated"
+                raw_predictions.append((index, raw_prediction))
                 if scene["valid"]:
-                    predictions.append((index, predictor.predict(frame, use_history=False)))
+                    predictions.append((index, raw_prediction))
             index += 1
         capture.release()
 
     if not predictions:
         scene = scene_checks[0]["scene"] if scene_checks else {"valid": False, "reason": "No readable frame."}
-        blocked = blocked_prediction(scene)
+        if raw_predictions:
+            raw = np.mean([prediction["raw_probabilities"] for _, prediction in raw_predictions], axis=0)
+            blocked = predictor.from_probabilities(raw)
+            blocked["scene"] = scene
+            blocked["defect_decision"] = "Not evaluated"
+        else:
+            blocked = blocked_prediction(scene)
         return {
             "prediction": blocked,
             "sampled_frames": len(scene_checks),
@@ -350,6 +361,7 @@ def analyse_video(predictor: DefectPredictor, video_bytes: bytes, suffix: str = 
             "observed_problems": [],
             "timeline": [],
             "scene_checks": scene_checks,
+            "raw_model_predictions": len(raw_predictions),
         }
 
     raw = np.mean([prediction["raw_probabilities"] for _, prediction in predictions], axis=0)
@@ -372,6 +384,7 @@ def analyse_video(predictor: DefectPredictor, video_bytes: bytes, suffix: str = 
         "status": "Print scene accepted",
         "reason": f"{len(predictions)} of {len(scene_checks)} sampled frames contained printable structure.",
     }
+    overall["defect_decision"] = "Accepted"
     return {
         "prediction": overall,
         "sampled_frames": len(scene_checks),
@@ -380,6 +393,7 @@ def analyse_video(predictor: DefectPredictor, video_bytes: bytes, suffix: str = 
         "observed_problems": observed,
         "timeline": timeline,
         "scene_checks": scene_checks,
+        "raw_model_predictions": len(raw_predictions),
     }
 
 
@@ -442,11 +456,9 @@ class CameraMonitor(threading.Thread):
                 if now - last_prediction >= PREDICTION_INTERVAL:
                     try:
                         scene = assess_print_scene(frame)
-                        prediction = (
-                            self.predictor.predict(frame)
-                            if scene["valid"]
-                            else blocked_prediction(scene)
-                        )
+                        prediction = self.predictor.predict(frame)
+                        prediction["scene"] = scene
+                        prediction["defect_decision"] = "Accepted" if scene["valid"] else "Not evaluated"
                         self.state.set_prediction(prediction, "Live camera")
                     except Exception as exc:
                         with self.state.lock:
@@ -508,6 +520,7 @@ INDEX_HTML = r"""<!doctype html>
     .upload-block + .upload-block { border-top:1px solid var(--line); margin-top:12px; }
     .video-result { margin-top:12px; padding:12px; border:1px solid var(--line); background:var(--panel); }
     .video-result strong { color:var(--cyan); }
+    .scene-note { margin-top:8px; color:var(--amber); font-size:12px; }
     .prediction { display:grid; grid-template-columns:minmax(170px,1fr) 130px 110px minmax(130px,1fr); gap:16px; padding:18px 0; border-bottom:1px solid var(--line); }
     .label { color:var(--muted); font-size:12px; text-transform:uppercase; }
     .value { font-size:24px; font-weight:650; margin-top:3px; }
@@ -555,11 +568,12 @@ INDEX_HTML = r"""<!doctype html>
         <div id="video-result" class="video-result" hidden><strong id="video-summary"></strong><div id="video-problems"></div></div>
       </div>
       <div class="prediction">
-        <div><div class="label">Detected condition</div><div id="class-name" class="value">Waiting</div></div>
+        <div><div class="label">Defect decision</div><div id="class-name" class="value">Waiting</div></div>
         <div><div class="label">Confidence</div><div id="confidence" class="value">0.0%</div></div>
         <div><div class="label">Risk</div><div id="risk" class="value">Unknown</div></div>
         <div><div class="label">Source</div><div id="source" class="value">--</div></div>
       </div>
+      <div id="raw-model-note" class="scene-note" hidden></div>
       <div class="feedback">
         <div><h2>AI feedback</h2><p id="description">Waiting for the first frame.</p><h2>Possible causes</h2><ul id="causes"></ul></div>
         <div><h2>Corrective actions</h2><ul id="actions"></ul></div>
@@ -637,11 +651,15 @@ INDEX_HTML = r"""<!doctype html>
         const data = await response.json();
         document.getElementById('camera-dot').classList.toggle('on', data.camera.connected);
         text('camera-status', `${data.camera.message} | ${data.camera.fps} FPS`);
-        text('class-name', data.prediction.class_name);
+        const sceneValid = data.prediction.scene?.valid === true;
+        text('class-name', sceneValid ? data.prediction.class_name : (data.prediction.defect_decision === 'Not evaluated' ? 'Not evaluated' : data.prediction.class_name));
         text('confidence', `${data.prediction.confidence.toFixed(1)}%`);
-        text('risk', data.prediction.risk);
+        text('risk', sceneValid ? data.prediction.risk : 'Scene blocked');
         text('source', data.prediction.source || '--');
         text('scene-status', data.prediction.scene?.status || 'Waiting');
+        const rawNote = document.getElementById('raw-model-note');
+        rawNote.hidden = sceneValid;
+        rawNote.textContent = sceneValid ? '' : `Raw classifier suggestion: ${data.prediction.class_name} (${Number(data.prediction.confidence).toFixed(1)}%). It is not counted because the camera view was rejected.`;
         text('description', data.prediction.description);
         list('causes', data.prediction.possible_causes);
         list('actions', data.prediction.corrective_actions);
@@ -714,8 +732,9 @@ INDEX_HTML = r"""<!doctype html>
         const prediction = result.prediction;
         const videoResult = document.getElementById('video-result');
         videoResult.hidden = false;
-        text('video-summary', `${prediction.class_name} · ${Number(prediction.confidence).toFixed(1)}% · ${result.valid_frames}/${result.sampled_frames} valid frames`);
-        document.getElementById('video-problems').textContent = result.observed_problems.length ? `Observed: ${result.observed_problems.join(', ')}` : prediction.scene.reason;
+        const videoSceneValid = prediction.scene?.valid === true;
+        text('video-summary', `${videoSceneValid ? prediction.class_name : 'Scene rejected'} · ${videoSceneValid ? Number(prediction.confidence).toFixed(1) + '%' : 'defect decision not evaluated'} · ${result.valid_frames}/${result.sampled_frames} valid frames`);
+        document.getElementById('video-problems').textContent = videoSceneValid && result.observed_problems.length ? `Observed: ${result.observed_problems.join(', ')}` : prediction.scene.reason;
         text('video-status', `Analysis complete for ${file.name}.`);
         refresh();
       } catch (error) {
@@ -803,11 +822,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 rgb = np.asarray(image, dtype=np.uint8)
                 frame = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
                 scene = assess_print_scene(frame)
-                prediction = (
-                    self.state.predictor.predict(frame, use_history=False)
-                    if scene["valid"]
-                    else blocked_prediction(scene)
-                )
+                prediction = self.state.predictor.predict(frame, use_history=False)
+                prediction["scene"] = scene
+                prediction["defect_decision"] = "Accepted" if scene["valid"] else "Not evaluated"
                 self.state.set_prediction(prediction, "Uploaded image")
                 self.send_bytes(json.dumps({"ok": True, "prediction": prediction}).encode("utf-8"), "application/json")
             except Exception as exc:
