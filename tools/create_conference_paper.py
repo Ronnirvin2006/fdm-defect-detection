@@ -16,6 +16,7 @@ SOURCE = ROOT / "outputs" / "paper" / "FDM_Defect_Detection_Conference_Paper.md"
 IAME_OUTPUT = ROOT / "outputs" / "paper" / "IAME2026_FDM_Defect_Detection_Full_Paper.docx"
 CONFUSION = ROOT / "outputs" / "figures" / "confusion_matrix.png"
 TRAINING_CURVES = ROOT / "outputs" / "figures" / "training_curves.png"
+FORCE_TABLE_COLUMNS = True
 
 AUTHORS = [
     ("Ron Nirvin J", "2023511004"),
@@ -165,6 +166,7 @@ def add_markdown_table(document, rows, table_number):
         ("Setting", "Retained value"): "TRAINING AND MODEL CONFIGURATION",
         ("Class", "Precision / Recall / F1", "n"): "PER-CLASS PERFORMANCE ON THE HELD-OUT TEST SPLIT",
         ("Predicted class", "Visual interpretation", "First operator check"): "OPERATOR GUIDANCE IMPLEMENTED IN THE DASHBOARD",
+        ("Study / model", "Task and data", "Reported metric", "Timing / scope"): "COMPARISON WITH PUBLISHED FDM SYSTEMS",
     }
     caption = caption_by_headers.get(tuple(headers), "EXPERIMENTAL RESULTS")
     label = document.add_paragraph()
@@ -255,7 +257,7 @@ def main():
                 ("Predicted class", "Visual interpretation", "First operator check"),
                 ("Class", "Precision / Recall / F1", "n"),
             }
-            if table_headers in new_column_tables:
+            if FORCE_TABLE_COLUMNS and table_headers in new_column_tables:
                 document.add_paragraph().add_run().add_break(WD_BREAK.COLUMN)
             table_number += 1
             add_markdown_table(document, table_rows, table_number)

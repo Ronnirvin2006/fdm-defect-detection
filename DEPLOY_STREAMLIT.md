@@ -1,0 +1,41 @@
+# Publish FDM Defect Detection Online
+
+The application is a Python/TensorFlow Streamlit app. Use Streamlit Community Cloud for the public hosted version. A static website host cannot load the Keras model or run the image inference code.
+
+## One-time deployment
+
+1. Open `https://share.streamlit.io` and sign in with the GitHub account that owns `Ronnirvin2006/fdm-defect-detection`.
+2. Choose **Create app**.
+3. Select repository `Ronnirvin2006/fdm-defect-detection`.
+4. Select branch `main`.
+5. Set the main file to `src/app.py`.
+6. Choose an app subdomain such as `fdm-defect-detection`.
+7. Deploy.
+
+The public address will be similar to `https://fdm-defect-detection.streamlit.app`. The exact address is assigned by Streamlit.
+
+## What visitors can use
+
+- Upload a JPG, JPEG, PNG, BMP, or WEBP image.
+- Receive one of eight predictions: Cracking, Layer shifting, No defect, Off platform, Spaghetti, Stringing, Under-extrusion, or Warping.
+- View the class confidence chart and curated causes/corrective checks.
+- Use the camera snapshot tab.
+
+The hosted Streamlit app does not access a visitor's local OpenCV device through the server. The continuous local dashboard remains available with `src/live_dashboard.py` for a computer physically connected to a printer camera.
+
+## Important deployment notes
+
+- No Kaggle credentials or OctoPrint API keys are needed for the public image-classification app.
+- Do not add `.kaggle/access_token` or printer API keys to GitHub.
+- Uploaded images are processed by the hosted app runtime. Do not upload confidential images.
+- The app provides decision support. It does not move printer axes, change heaters, or stop a printer automatically.
+- Search-engine discovery is separate from deployment. Search engines may take time to index a new app; typing “FDM detection” will not guarantee it appears first.
+
+## Local check
+
+```bash
+cd /home/ron/ml/fdm_defect_detection
+.venv/bin/streamlit run src/app.py
+```
+
+Then open `http://localhost:8501`.
