@@ -29,6 +29,7 @@ from scene_guard import assess_print_scene, blocked_prediction
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CAPTURE_DIR = PROJECT_ROOT / "data" / "captured"
 HOST = os.getenv("FDM_DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.getenv("FDM_DASHBOARD_PORT", "8765"))
 CAMERA_INDEX = int(os.getenv("FDM_CAMERA_INDEX", "0"))
@@ -110,6 +111,7 @@ class SharedState:
         self.nozzle_cleaned_at = None
         self.history = deque(maxlen=120)
         self.video_result = None
+        self.latest_frame = None
         self.model = {
             "architecture": "EfficientNetB0",
             "input_size": "224 x 224",
@@ -153,6 +155,21 @@ class SharedState:
     def clear_history(self) -> None:
         with self.lock:
             self.history.clear()
+
+    def capture_frame(self, label: str) -> Path:
+        allowed = {"valid_print_scene", "invalid_scene", *self.model["classes"]}
+        if label not in allowed:
+            raise ValueError("Unknown capture label.")
+        with self.lock:
+            if self.latest_frame is None:
+                raise ValueError("Start the live camera before capturing a training sample.")
+            frame = self.latest_frame.copy()
+        target = CAPTURE_DIR / label
+        target.mkdir(parents=True, exist_ok=True)
+        path = target / f"capture_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.jpg"
+        if not cv2.imwrite(str(path), frame):
+            raise OSError("The training sample could not be saved.")
+        return path
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -420,6 +437,7 @@ class CameraMonitor(threading.Thread):
                         "fps": 0.0,
                     }
                     self.state.frame = self.placeholder("Camera is off")
+                    self.state.latest_frame = None
                 self.state.camera_requested.clear()
                 self.state.camera_requested.wait(timeout=0.5)
                 continue
@@ -475,6 +493,7 @@ class CameraMonitor(threading.Thread):
                 with self.state.lock:
                     prediction = dict(self.state.prediction)
                     self.state.camera["fps"] = round(measured_fps, 1)
+                    self.state.latest_frame = frame.copy()
 
                 label = f"{prediction['class_name']}  {prediction['confidence']:.1f}%"
                 color = (62, 207, 142) if prediction["class_name"] == "No_defect" else (78, 153, 255)
@@ -493,6 +512,7 @@ class CameraMonitor(threading.Thread):
                     "fps": 0.0,
                 }
                 self.state.frame = self.placeholder("Camera is off")
+                self.state.latest_frame = None
 
 
 INDEX_HTML = r"""<!doctype html>
@@ -600,6 +620,12 @@ INDEX_HTML = r"""<!doctype html>
         <p id="model-classes" class="model-classes"></p>
       </div>
       <div class="section">
+        <h2>Capture training sample</h2>
+        <select id="capture-label" aria-label="Training sample label"></select>
+        <button id="capture-button" type="button">Save current frame</button>
+        <p id="capture-status" class="note">Use only manually verified labels. The model's prediction is not used as the label.</p>
+      </div>
+      <div class="section">
         <h2>Live telemetry</h2>
         <div class="grid">
           <div class="metric"><span class="label">Nozzle</span><strong id="nozzle">Unavailable</strong></div>
@@ -666,6 +692,12 @@ INDEX_HTML = r"""<!doctype html>
         text('model-status', data.model.status);
         text('model-input', data.model.input_size);
         text('model-classes', data.model.classes.join(' · '));
+        const captureSelect = document.getElementById('capture-label');
+        if (!captureSelect.options.length) {
+          ['valid_print_scene', 'invalid_scene', ...data.model.classes].forEach(label => {
+            const option = document.createElement('option'); option.value = label; option.textContent = label; captureSelect.appendChild(option);
+          });
+        }
         renderHistory(data.history);
         document.getElementById('printer-dot').classList.toggle('on', data.telemetry.connected);
         text('printer-state', data.telemetry.printer_state);
@@ -697,6 +729,16 @@ INDEX_HTML = r"""<!doctype html>
     document.getElementById('clear-history').addEventListener('click', async () => {
       await fetch('/api/clear-history', {method:'POST'});
       refresh();
+    });
+    document.getElementById('capture-button').addEventListener('click', async () => {
+      const label = document.getElementById('capture-label').value;
+      text('capture-status', `Saving current frame as ${label}...`);
+      try {
+        const response = await fetch('/api/capture-frame', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({label})});
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Capture failed');
+        text('capture-status', `Saved ${payload.label} sample ${payload.file_count} time(s).`);
+      } catch (error) { text('capture-status', `Capture failed: ${error.message}`); }
     });
     document.getElementById('image-upload').addEventListener('change', async (event) => {
       const file = event.target.files[0];
@@ -803,6 +845,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if self.path == "/api/clear-history":
             self.state.clear_history()
             self.send_bytes(b'{"ok":true}', "application/json")
+            return
+        if self.path == "/api/capture-frame":
+            try:
+                content_length = int(self.headers.get("Content-Length", "0"))
+                request = json.loads(self.rfile.read(content_length) or b"{}")
+                label = str(request.get("label", ""))
+                path = self.state.capture_frame(label)
+                file_count = len(list((CAPTURE_DIR / label).glob("*.jpg")))
+                payload = {"ok": True, "label": label, "path": str(path.relative_to(PROJECT_ROOT)), "file_count": file_count}
+                self.send_bytes(json.dumps(payload).encode("utf-8"), "application/json")
+            except Exception as exc:
+                self.send_bytes(json.dumps({"ok": False, "error": str(exc)}).encode("utf-8"), "application/json", HTTPStatus.BAD_REQUEST)
             return
         if self.path == "/api/nozzle-cleaning":
             with self.state.lock:

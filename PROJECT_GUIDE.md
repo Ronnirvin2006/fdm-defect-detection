@@ -159,6 +159,7 @@ status is explicitly an operator confirmation, not a sensor reading.
 | `src/app.py` | Streamlit inspection workspace with image/video upload, WebRTC live camera, feedback, quality checks, and session CSV history. |
 | `src/live_dashboard.py` | Stable OpenCV continuous camera server, scene gate, image/video uploads, temporal prediction averaging, model/coverage status, inspection history, cleaning checklist, and optional OctoPrint telemetry. |
 | `src/scene_guard.py` | Conservative out-of-domain gate that rejects faces, unusable lighting, and near-uniform background views before defect classification. |
+| `CAPTURE_AND_RETRAIN.md` | Manual camera-sample collection rules and the evidence-based retraining workflow. |
 
 ### Model Files
 
