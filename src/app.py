@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -9,6 +10,7 @@ os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 import cv2
+import hashlib
 import pandas as pd
 import numpy as np
 from PIL import Image
@@ -47,6 +49,135 @@ RTC_CONFIGURATION = (
     if ENABLE_WEBRTC
     else None
 )
+
+
+def inject_dashboard_style() -> None:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stAppViewContainer"] { background: #0f1418; }
+        [data-testid="stHeader"] { background: rgba(15, 20, 24, 0.92); }
+        [data-testid="stSidebar"] { background: #131a1f; border-right: 1px solid #26343b; }
+        .fdm-hero { padding: 1.1rem 1.25rem; border: 1px solid #2b4149; border-radius: 12px;
+            background: linear-gradient(120deg, #142a31, #141b21 58%, #17222a); margin-bottom: 1rem; }
+        .fdm-kicker { color: #63d6dc; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+        .fdm-hero h1 { margin: 0.25rem 0 0.35rem; font-size: clamp(1.55rem, 3vw, 2.35rem); }
+        .fdm-hero p { margin: 0; color: #b7c5ca; }
+        .fdm-badge { display: inline-block; margin-top: 0.8rem; padding: 0.28rem 0.62rem;
+            border-radius: 999px; background: #173b3d; color: #8ce9e3; font-size: 0.78rem; }
+        .fdm-section { color: #d9eef0; font-weight: 700; letter-spacing: 0.02em; margin: 0.5rem 0; }
+        .fdm-muted { color: #9eafb5; font-size: 0.83rem; }
+        div[data-testid="stMetric"] { background: #151f25; border: 1px solid #293a42; padding: 0.8rem;
+            border-radius: 9px; }
+        div[data-testid="stMetricLabel"] { color: #9eafb5; }
+        .fdm-footnote { color: #93a6ad; border-top: 1px solid #26343b; padding-top: 0.8rem; font-size: 0.82rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def init_session() -> None:
+    st.session_state.setdefault("scan_history", [])
+    st.session_state.setdefault("last_inspection", None)
+
+
+def inspection_token(source: str, label: str, payload: dict, content: bytes | None = None) -> str:
+    digest = hashlib.sha1()
+    digest.update(source.encode("utf-8"))
+    digest.update(label.encode("utf-8"))
+    digest.update(f"{payload['predicted_class']}:{payload['confidence']:.5f}".encode("utf-8"))
+    if content:
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def remember_inspection(source: str, label: str, payload: dict, content: bytes | None = None, detail: str = "") -> None:
+    token = inspection_token(source, label, payload, content)
+    history = st.session_state["scan_history"]
+    if any(item["token"] == token for item in history):
+        st.session_state["last_inspection"] = history[next(i for i, item in enumerate(history) if item["token"] == token)]
+        return
+    record = {
+        "token": token,
+        "time": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+        "source": source,
+        "input": label,
+        "prediction": payload["predicted_class"],
+        "confidence (%)": round(payload["confidence"], 2),
+        "risk": risk_level(payload["predicted_class"], payload["confidence"]),
+        "detail": detail,
+    }
+    st.session_state["scan_history"] = [record, *history[:24]]
+    st.session_state["last_inspection"] = record
+
+
+def show_workspace_summary(class_names: list[str]) -> None:
+    history = st.session_state["scan_history"]
+    latest = st.session_state.get("last_inspection")
+    st.markdown(
+        "<div class='fdm-hero'><div class='fdm-kicker'>FDM inspection workspace</div>"
+        "<h1>Print quality, visible at a glance.</h1>"
+        "<p>Inspect an image, uploaded clip, or live camera stream with the retained EfficientNetB0 model.</p>"
+        "<span class='fdm-badge'>Model online · 8 trained classes · 224 × 224 input</span></div>",
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(4)
+    with cols[0]:
+        st.metric("Latest prediction", latest["prediction"] if latest else "No scan yet")
+    with cols[1]:
+        st.metric("Confidence", f"{latest['confidence (%)']:.2f}%" if latest else "--")
+    with cols[2]:
+        st.metric("Risk", latest["risk"] if latest else "--")
+    with cols[3]:
+        st.metric("Session scans", len(history))
+    st.caption(f"Coverage: {', '.join(class_names)}")
+
+
+def show_sidebar(class_names: list[str]) -> None:
+    with st.sidebar:
+        st.markdown("## FDM Quality Desk")
+        st.caption("AI-assisted visual inspection")
+        st.divider()
+        st.markdown("### System status")
+        st.success("Model loaded")
+        st.write("**Architecture:** EfficientNetB0")
+        st.write("**Input:** 224 × 224 RGB")
+        st.write(f"**Coverage:** {len(class_names)} classes")
+        st.divider()
+        st.markdown("### Inspection sources")
+        st.write("Image upload · Video upload · Live webcam · Snapshot")
+        st.caption("Browser camera access requires HTTPS and permission.")
+        st.divider()
+        st.markdown("### Session tools")
+        history = st.session_state["scan_history"]
+        if history:
+            report = pd.DataFrame(history).drop(columns=["token"], errors="ignore")
+            st.download_button(
+                "Download inspection log",
+                report.to_csv(index=False).encode("utf-8"),
+                "fdm_inspection_log.csv",
+                "text/csv",
+                use_container_width=True,
+            )
+            if st.button("Clear session history", use_container_width=True):
+                st.session_state["scan_history"] = []
+                st.session_state["last_inspection"] = None
+                st.rerun()
+        else:
+            st.caption("Your inspection history will appear here during this browser session.")
+        st.divider()
+        st.caption("Decision support only. Confirm important printer actions visually before changing hardware or settings.")
+
+
+def show_recent_inspections() -> None:
+    history = st.session_state["scan_history"]
+    st.markdown("<div class='fdm-section'>Recent inspections</div>", unsafe_allow_html=True)
+    if not history:
+        st.info("No inspections in this session yet. Start with an image or video upload.")
+        return
+    table = pd.DataFrame(history).drop(columns=["token", "detail"], errors="ignore")
+    st.dataframe(table, hide_index=True, use_container_width=True)
 
 
 @st.cache_resource
@@ -144,12 +275,20 @@ def show_feedback(payload: dict) -> None:
             st.write(f"- {action}")
 
 
-def show_prediction(image: Image.Image) -> None:
+def image_quality(image: Image.Image) -> dict:
+    grayscale = np.asarray(image.convert("L"), dtype=np.float32)
+    return {
+        "brightness": float(grayscale.mean()),
+        "sharpness": float(cv2.Laplacian(grayscale, cv2.CV_32F).var()),
+    }
+
+
+def show_prediction(image: Image.Image) -> dict | None:
     try:
         payload = prediction_payload(*predict(image))
     except Exception as exc:
         st.error(f"Prediction failed: {exc}")
-        return
+        return None
 
     left, right = st.columns([1, 1])
     with left:
@@ -160,9 +299,18 @@ def show_prediction(image: Image.Image) -> None:
         st.write("Class confidence")
         st.bar_chart(confidence_chart(payload))
 
+    quality = image_quality(image)
+    if quality["brightness"] < 35:
+        st.warning("Image quality check: the frame is very dark, so confidence may be less reliable.")
+    elif quality["brightness"] > 225:
+        st.warning("Image quality check: the frame is overexposed, so defect details may be lost.")
+    if quality["sharpness"] < 35:
+        st.warning("Image quality check: the frame appears blurred. Hold the camera steady and rescan.")
+
     st.subheader("AI Feedback")
     st.write(payload["knowledge"]["description"])
     show_feedback(payload)
+    return payload
 
 
 def read_video_samples(video_file, max_frames: int = 36):
@@ -248,7 +396,7 @@ def analyze_video(video_file) -> dict:
     }
 
 
-def show_video_analysis(video_file) -> None:
+def show_video_analysis(video_file) -> dict | None:
     video_bytes = video_file.getvalue()
     st.video(video_bytes)
     try:
@@ -256,7 +404,7 @@ def show_video_analysis(video_file) -> None:
             result = analyze_video(video_file)
     except Exception as exc:
         st.error(f"Video analysis failed: {exc}")
-        return
+        return None
 
     payload = result["payload"]
     duration_text = f"{result['duration']:.1f} s" if result["duration"] else "unknown duration"
@@ -288,6 +436,7 @@ def show_video_analysis(video_file) -> None:
         caption=[f"{row['Time (s)']} s: {row['Prediction']}" for row in result["timeline"]],
         width=180,
     )
+    return result
 
 
 class LiveDefectProcessor(VideoProcessorBase):
@@ -327,33 +476,53 @@ class LiveDefectProcessor(VideoProcessorBase):
 
 
 def main() -> None:
-    st.title("AI-Based FDM 3D Printing Defect Detection")
+    inject_dashboard_style()
+    init_session()
     _, class_names = load_model_and_classes()
-    st.caption(f"Current trained model detects: {', '.join(class_names)}.")
+    show_sidebar(class_names)
+    show_workspace_summary(class_names)
 
     tab_upload, tab_video, tab_live, tab_camera = st.tabs(
-        ["Upload Image", "Upload Video", "Live Webcam", "Camera Snapshot"]
+        ["Image Inspection", "Video Review", "Live Camera", "Snapshot"]
     )
 
     with tab_upload:
-        uploaded = st.file_uploader("Upload a 3D print image", type=["jpg", "jpeg", "png", "bmp", "webp"])
+        st.markdown("<div class='fdm-section'>Inspect a single print frame</div>", unsafe_allow_html=True)
+        uploaded = st.file_uploader(
+            "Choose a print image",
+            type=["jpg", "jpeg", "png", "bmp", "webp"],
+            help="Use a clear, well-lit view of the printed part.",
+        )
         if uploaded:
-            show_prediction(safe_image(uploaded))
+            image = safe_image(uploaded)
+            payload = show_prediction(image)
+            if payload:
+                remember_inspection("Image upload", uploaded.name, payload, uploaded.getvalue())
 
     with tab_video:
-        st.write("Upload a short printer-monitoring video. The app samples frames across the clip and reports the conditions it sees.")
+        st.markdown("<div class='fdm-section'>Review a printer-monitoring clip</div>", unsafe_allow_html=True)
+        st.caption("The app samples frames across the clip and reports the conditions it sees. Short, steady clips work best.")
         uploaded_video = st.file_uploader(
-            "Upload a defect-monitoring video",
+            "Choose a video",
             type=["mp4", "mov", "avi", "webm"],
             key="video-upload",
             help="Short clips work best. Up to 36 evenly spaced frames are analysed.",
         )
         if uploaded_video and st.button("Analyse video", type="primary"):
-            show_video_analysis(uploaded_video)
+            result = show_video_analysis(uploaded_video)
+            if result:
+                remember_inspection(
+                    "Video upload",
+                    uploaded_video.name,
+                    result["payload"],
+                    uploaded_video.getvalue(),
+                    f"{result['sampled_frames']} sampled frames",
+                )
 
     with tab_live:
         if ENABLE_WEBRTC:
-            st.write("Start the camera and point it at the print. Prediction is refreshed every few frames.")
+            st.markdown("<div class='fdm-section'>Continuous browser-camera inspection</div>", unsafe_allow_html=True)
+            st.caption("Start the camera, allow browser permission, and point it at the print. Prediction refreshes every few frames.")
             webrtc_streamer(
                 key="fdm-live-detection",
                 mode=WebRtcMode.SENDRECV,
@@ -371,14 +540,20 @@ def main() -> None:
                 st.caption(f"WebRTC setup message: {WEBRTC_IMPORT_ERROR}")
 
     with tab_camera:
-        camera_image = st.camera_input("Take a live camera snapshot")
+        st.markdown("<div class='fdm-section'>Capture one frame for inspection</div>", unsafe_allow_html=True)
+        camera_image = st.camera_input("Open the camera")
         if camera_image:
-            show_prediction(safe_image(camera_image))
+            image = safe_image(camera_image)
+            payload = show_prediction(image)
+            if payload:
+                remember_inspection("Camera snapshot", "browser camera", payload, camera_image.getvalue())
 
+    show_recent_inspections()
     st.divider()
-    st.write(
-        "The live camera is a prototype monitor. For final quality decisions, use the confidence score "
-        "and visually confirm the print condition."
+    st.markdown(
+        "<div class='fdm-footnote'>The system is decision support, not an automatic printer controller. "
+        "Confirm important defects visually before changing temperature, speed, axes, or hardware.</div>",
+        unsafe_allow_html=True,
     )
 
 

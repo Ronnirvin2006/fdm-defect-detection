@@ -90,9 +90,10 @@ cd /home/ron/ml/fdm_defect_detection
 .venv/bin/streamlit run src/app.py
 ```
 
-Open `http://127.0.0.1:8501`. Use `Upload Image` for a saved image or `Camera
-Snapshot` for a single camera capture. Streamlit WebRTC is disabled by default on
-this laptop because its native package is unstable.
+Open `http://127.0.0.1:8501`. Use `Image Inspection` for a saved image, `Video Review`
+for a short clip, `Live Camera` for continuous browser-camera inference, or `Snapshot`
+for a single camera capture. The stable local OpenCV dashboard remains the preferred
+path when a printer camera is physically connected to this computer.
 
 ### Command-Line Prediction
 
@@ -155,8 +156,8 @@ status is explicitly an operator confirmation, not a sensor reading.
 | `src/predict.py` | Runs one saved image through the active model and prints ranked confidence scores and recommendations. |
 | `src/gradcam.py` | Produces a Grad-CAM heatmap showing which image regions influenced a prediction. |
 | `src/defect_knowledge.py` | Stores descriptions, likely causes, and corrective actions for known FDM defects. |
-| `src/app.py` | Streamlit upload and camera-snapshot interface; optional WebRTC code remains disabled by default. |
-| `src/live_dashboard.py` | Stable OpenCV continuous camera server, temporal prediction averaging, feedback dashboard, cleaning checklist, and optional OctoPrint telemetry. |
+| `src/app.py` | Streamlit inspection workspace with image/video upload, WebRTC live camera, feedback, quality checks, and session CSV history. |
+| `src/live_dashboard.py` | Stable OpenCV continuous camera server, temporal prediction averaging, model/coverage status, inspection history, cleaning checklist, and optional OctoPrint telemetry. |
 
 ### Model Files
 

@@ -3,7 +3,8 @@ import os
 import signal
 import threading
 import time
-from io import BytesIO
+import csv
+from io import BytesIO, StringIO
 from collections import deque
 from datetime import datetime
 from http import HTTPStatus
@@ -105,6 +106,13 @@ class SharedState:
         self.camera_requested = threading.Event()
         self.nozzle_cleaned = False
         self.nozzle_cleaned_at = None
+        self.history = deque(maxlen=120)
+        self.model = {
+            "architecture": "EfficientNetB0",
+            "input_size": "224 x 224",
+            "classes": list(predictor.class_names),
+            "status": "Loaded",
+        }
         self.camera = {
             "connected": False,
             "message": "Camera off - open the dashboard to start",
@@ -123,9 +131,24 @@ class SharedState:
         }
         self.telemetry = disconnected_telemetry("OctoPrint is not configured")
 
-    def set_prediction(self, prediction: dict) -> None:
+    def set_prediction(self, prediction: dict, source: str = "Live camera") -> None:
         with self.lock:
-            self.prediction = prediction
+            stored_prediction = dict(prediction)
+            stored_prediction["source"] = source
+            self.prediction = stored_prediction
+            self.history.append(
+                {
+                    "time": prediction.get("updated_at"),
+                    "source": source,
+                    "class_name": prediction.get("class_name"),
+                    "confidence": round(float(prediction.get("confidence", 0.0)), 2),
+                    "risk": prediction.get("risk"),
+                }
+            )
+
+    def clear_history(self) -> None:
+        with self.lock:
+            self.history.clear()
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -133,6 +156,8 @@ class SharedState:
                 "camera": dict(self.camera),
                 "prediction": dict(self.prediction),
                 "telemetry": dict(self.telemetry),
+                "model": dict(self.model),
+                "history": list(self.history)[-24:],
                 "nozzle_cleaning": {
                     "confirmed_by_operator": self.nozzle_cleaned,
                     "confirmed_at": self.nozzle_cleaned_at,
@@ -330,7 +355,7 @@ class CameraMonitor(threading.Thread):
                 if now - last_prediction >= PREDICTION_INTERVAL:
                     try:
                         prediction = self.predictor.predict(frame)
-                        self.state.set_prediction(prediction)
+                        self.state.set_prediction(prediction, "Live camera")
                     except Exception as exc:
                         with self.state.lock:
                             self.state.prediction["description"] = f"Prediction failed: {exc}"
@@ -387,7 +412,7 @@ INDEX_HTML = r"""<!doctype html>
     .video-wrap img { width:100%; height:100%; object-fit:contain; display:block; }
     .tools { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:14px 0 0; color:var(--muted); }
     input[type=file] { max-width:320px; }
-    .prediction { display:grid; grid-template-columns:180px 130px 1fr; gap:16px; padding:18px 0; border-bottom:1px solid var(--line); }
+    .prediction { display:grid; grid-template-columns:minmax(170px,1fr) 130px 110px minmax(130px,1fr); gap:16px; padding:18px 0; border-bottom:1px solid var(--line); }
     .label { color:var(--muted); font-size:12px; text-transform:uppercase; }
     .value { font-size:24px; font-weight:650; margin-top:3px; }
     .feedback { padding-top:18px; display:grid; grid-template-columns:1fr 1fr; gap:24px; }
@@ -401,14 +426,24 @@ INDEX_HTML = r"""<!doctype html>
     .unavailable { color:var(--muted); }
     .guide { display:grid; gap:9px; }
     .guide div { border-left:3px solid var(--cyan); padding-left:10px; }
+    .history { margin-top:22px; border-top:1px solid var(--line); padding-top:18px; }
+    .history-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    .history-head h2 { margin:0; font-size:14px; }
+    .history-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .history-table { width:100%; border-collapse:collapse; font-size:12px; }
+    .history-table th, .history-table td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); }
+    .history-table th { color:var(--muted); font-weight:500; }
+    .history-table td:nth-child(4) { color:var(--cyan); font-weight:650; }
+    .model-classes { color:#cbd2d9; line-height:1.8; }
     button { border:1px solid #4b5864; background:#232a31; color:var(--text); padding:9px 12px; cursor:pointer; }
     button:hover { background:#2c353e; }
     .note { color:var(--muted); font-size:12px; margin-top:9px; }
     @media (max-width:900px) { main { grid-template-columns:1fr; } aside { border-left:0; border-top:1px solid var(--line); } .prediction { grid-template-columns:1fr 1fr; } .feedback { grid-template-columns:1fr; } }
+    @media (max-width:560px) { .prediction { grid-template-columns:1fr; } .history-head { align-items:flex-start; flex-direction:column; } .history-table { min-width:560px; } .history { overflow:auto; } }
   </style>
 </head>
 <body>
-  <header><h1>FDM Live Defect Monitor</h1><div class="status"><span id="camera-dot" class="dot"></span><span id="camera-status">Starting camera</span></div></header>
+  <header><div><h1>FDM Quality Desk</h1><span class="note">AI-assisted fused deposition modelling inspection</span></div><div class="status"><span id="camera-dot" class="dot"></span><span id="camera-status">Starting camera</span></div></header>
   <main>
     <section class="vision">
       <div class="video-wrap"><img src="/video" alt="Live OpenCV camera feed"></div>
@@ -421,10 +456,16 @@ INDEX_HTML = r"""<!doctype html>
         <div><div class="label">Detected condition</div><div id="class-name" class="value">Waiting</div></div>
         <div><div class="label">Confidence</div><div id="confidence" class="value">0.0%</div></div>
         <div><div class="label">Risk</div><div id="risk" class="value">Unknown</div></div>
+        <div><div class="label">Source</div><div id="source" class="value">--</div></div>
       </div>
       <div class="feedback">
         <div><h2>AI feedback</h2><p id="description">Waiting for the first frame.</p><h2>Possible causes</h2><ul id="causes"></ul></div>
         <div><h2>Corrective actions</h2><ul id="actions"></ul></div>
+      </div>
+      <div class="history">
+        <div class="history-head"><h2>Recent inspections</h2><div class="history-actions"><button id="download-history" type="button">Download CSV</button><button id="clear-history" type="button">Clear</button></div></div>
+        <div id="history-empty" class="note">No predictions recorded yet.</div>
+        <table id="history-table" class="history-table" hidden><thead><tr><th>Time</th><th>Source</th><th>Condition</th><th>Confidence</th><th>Risk</th></tr></thead><tbody></tbody></table>
       </div>
     </section>
     <aside>
@@ -432,6 +473,14 @@ INDEX_HTML = r"""<!doctype html>
         <h2>Printer connection</h2>
         <div class="status"><span id="printer-dot" class="dot"></span><span id="printer-state">Disconnected</span></div>
         <div id="printer-message" class="note">OctoPrint is not configured</div>
+      </div>
+      <div class="section">
+        <h2>AI model</h2>
+        <div class="grid">
+          <div class="metric"><span class="label">Status</span><strong id="model-status">Loading</strong></div>
+          <div class="metric"><span class="label">Input</span><strong id="model-input">224 × 224</strong></div>
+        </div>
+        <p id="model-classes" class="model-classes"></p>
       </div>
       <div class="section">
         <h2>Live telemetry</h2>
@@ -469,8 +518,16 @@ INDEX_HTML = r"""<!doctype html>
   <script>
     const text = (id, value) => document.getElementById(id).textContent = value;
     const list = (id, values) => document.getElementById(id).innerHTML = values.map(v => `<li>${v}</li>`).join('');
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
     const metric = value => value === null || value === undefined ? 'Unavailable' : value;
     const temperature = (actual, target) => actual === null || actual === undefined ? 'Unavailable' : `${actual.toFixed(1)} / ${target?.toFixed(0) ?? '-'} C`;
+    function renderHistory(rows) {
+      const table = document.getElementById('history-table');
+      const empty = document.getElementById('history-empty');
+      if (!rows || !rows.length) { table.hidden = true; empty.hidden = false; return; }
+      empty.hidden = true; table.hidden = false;
+      table.querySelector('tbody').innerHTML = rows.slice().reverse().map(row => `<tr><td>${escapeHtml(row.time)}</td><td>${escapeHtml(row.source)}</td><td>${escapeHtml(row.class_name)}</td><td>${Number(row.confidence).toFixed(2)}%</td><td>${escapeHtml(row.risk)}</td></tr>`).join('');
+    }
     async function refresh() {
       try {
         const response = await fetch('/api/status', {cache:'no-store'});
@@ -480,9 +537,14 @@ INDEX_HTML = r"""<!doctype html>
         text('class-name', data.prediction.class_name);
         text('confidence', `${data.prediction.confidence.toFixed(1)}%`);
         text('risk', data.prediction.risk);
+        text('source', data.prediction.source || '--');
         text('description', data.prediction.description);
         list('causes', data.prediction.possible_causes);
         list('actions', data.prediction.corrective_actions);
+        text('model-status', data.model.status);
+        text('model-input', data.model.input_size);
+        text('model-classes', data.model.classes.join(' · '));
+        renderHistory(data.history);
         document.getElementById('printer-dot').classList.toggle('on', data.telemetry.connected);
         text('printer-state', data.telemetry.printer_state);
         text('printer-message', data.telemetry.message);
@@ -507,6 +569,11 @@ INDEX_HTML = r"""<!doctype html>
     }
     document.getElementById('clean-button').addEventListener('click', async () => {
       await fetch('/api/nozzle-cleaning', {method:'POST'});
+      refresh();
+    });
+    document.getElementById('download-history').addEventListener('click', () => { window.location.href = '/api/history.csv'; });
+    document.getElementById('clear-history').addEventListener('click', async () => {
+      await fetch('/api/clear-history', {method:'POST'});
       refresh();
     });
     document.getElementById('image-upload').addEventListener('change', async (event) => {
@@ -552,6 +619,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
             payload = json.dumps(self.state.snapshot()).encode("utf-8")
             self.send_bytes(payload, "application/json")
             return
+        if self.path == "/api/history.csv":
+            rows = self.state.snapshot()["history"]
+            if rows:
+                columns = ["time", "source", "class_name", "confidence", "risk"]
+                text_buffer = StringIO()
+                writer = csv.DictWriter(text_buffer, fieldnames=columns)
+                writer.writeheader()
+                writer.writerows(rows)
+                text = text_buffer.getvalue()
+            else:
+                text = "time,source,class_name,confidence,risk\n"
+            self.send_bytes(text.encode("utf-8"), "text/csv; charset=utf-8")
+            return
         if self.path == "/video":
             self.state.add_video_client()
             self.send_response(HTTPStatus.OK)
@@ -573,6 +653,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_bytes(b"Not found", "text/plain", HTTPStatus.NOT_FOUND)
 
     def do_POST(self):
+        if self.path == "/api/clear-history":
+            self.state.clear_history()
+            self.send_bytes(b'{"ok":true}', "application/json")
+            return
         if self.path == "/api/nozzle-cleaning":
             with self.state.lock:
                 self.state.nozzle_cleaned = not self.state.nozzle_cleaned
@@ -591,7 +675,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 rgb = np.asarray(image, dtype=np.uint8)
                 frame = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
                 prediction = self.state.predictor.predict(frame, use_history=False)
-                self.state.set_prediction(prediction)
+                self.state.set_prediction(prediction, "Uploaded image")
                 self.send_bytes(json.dumps({"ok": True, "prediction": prediction}).encode("utf-8"), "application/json")
             except Exception as exc:
                 payload = json.dumps({"ok": False, "error": str(exc)}).encode("utf-8")

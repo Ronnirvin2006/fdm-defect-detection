@@ -148,18 +148,19 @@ automatically moves an axis or changes a heater setting.
 
 The Streamlit panel supports:
 
-- Uploading an image.
+- Uploading an image or a short video.
+- Continuous browser-camera inspection through WebRTC.
 - Taking a camera snapshot as a fallback.
-- Displaying predicted defect class and confidence.
-- Showing AI feedback, possible causes, and corrective actions.
+- Displaying predicted defect class, confidence, risk level, and class distribution.
+- Showing image-quality warnings, possible causes, and corrective actions.
+- Keeping a session inspection history with CSV export.
 
-During presentation, use the upload tab for a known test image or use the Streamlit
+During presentation, use the image tab for a known test image or use the Streamlit
 WebRTC live tab for continuous browser-camera monitoring. If WebRTC is blocked by the
 browser or network, run the separate OpenCV dashboard for local continuous monitoring.
 
-For a continuous local camera feed, prefer `src/live_dashboard.py`. It avoids the
-native WebRTC component that is unstable on this laptop. The nozzle-cleaning value is
-an explicitly marked operator confirmation, not a value inferred by the camera.
+The nozzle-cleaning value is an explicitly marked operator confirmation, not a value
+inferred by the camera.
 
 The current trained model detects `Cracking`, `Layer_shifting`, `No_defect`, `Off_platform`, `Spaghetti`, `Stringing`, `Under_extrusion`, and `Warping`. Extra defects such as over-extrusion, nozzle clog, blobs/zits, and layer separation require additional labeled datasets and retraining.
 

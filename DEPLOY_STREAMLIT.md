@@ -27,6 +27,7 @@ The app has a deployment-specific `src/requirements.txt`. Because the entrypoint
 - View the class confidence chart and curated causes/corrective checks.
 - Use the **Live Webcam** tab for continuous browser-camera inference. The browser must grant camera permission.
 - Use the camera snapshot tab.
+- Keep a session inspection history and download it as CSV from the sidebar.
 
 The hosted Streamlit app uses WebRTC for browser-camera access; it does not access a visitor's local OpenCV device through the server. The continuous local dashboard remains available with `src/live_dashboard.py` for a computer physically connected to a printer camera.
 
